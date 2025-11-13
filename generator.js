@@ -1,8 +1,16 @@
-const fetch = require('node-fetch');
+const fetch = require('node-fetch'); // node-fetch v2
 const fs = require('fs');
 
+// Weekday check: only run Mon-Fri
+const today = new Date().getDay(); // 0 = Sunday, 6 = Saturday
+if (today === 0 || today === 6) {
+  console.log("Weekend detected. Skipping feed generation.");
+  process.exit(0);
+}
+
+// Topics
 const TOPICS = [
-  "Daily mini‑vlogs", "Behind‑the‑scenes workspace", "Quick how‑to", "Life hacks",
+  "Daily mini-vlogs", "Behind-the-scenes workspace", "Quick how-to", "Life hacks",
   "Before-and-after transformations", "Food videos", "Pet/animal videos", "DIY / craft projects",
   "Product reviews / unboxing", "Tech / gadget demos", "Gaming clips", "Sports / extreme sports clips",
   "Fitness / workout snippets", "Fashion / try-on haul", "Beauty / makeup quick changes",
@@ -20,40 +28,65 @@ const TOPICS = [
   "Unusual / niche hobbies", "Behind-the-brand / small business intro"
 ];
 
-// Utility: shuffle an array
+// Shuffle utility
 function shuffleArray(array) {
   return array.sort(() => Math.random() - 0.5);
 }
 
 // Fetch videos from YouTube
 async function fetchVideos(topic) {
+  if (!process.env.YOUTUBE_API_KEY) {
+    console.error("Missing YOUTUBE_API_KEY environment variable!");
+    return [];
+  }
+
   const url = `https://www.googleapis.com/youtube/v3/search?part=id&type=video&videoDuration=short&q=${encodeURIComponent(topic)}&maxResults=50&key=${process.env.YOUTUBE_API_KEY}`;
-  const res = await fetch(url);
-  const data = await res.json();
-  if (!data.items) return [];
-  return data.items.map(i => i.id.videoId);
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (data.error) {
+      console.error(`API error for topic "${topic}":`, data.error);
+      return [];
+    }
+
+    if (!data.items || data.items.length === 0) {
+      console.warn(`No videos found for topic "${topic}"`);
+      return [];
+    }
+
+    return data.items
+      .map(i => i.id.videoId)
+      .filter(id => !!id); // remove undefined ids
+  } catch (err) {
+    console.error(`Network or fetch error for topic "${topic}":`, err);
+    return [];
+  }
 }
 
-// Main function
+// Main
 (async () => {
   let feed = [];
   console.log("Generating new YouTube Shorts feed...");
 
   for (let topic of TOPICS) {
-    try {
-      const videos = await fetchVideos(topic);
-      feed.push(...videos);
-      console.log(`Fetched ${videos.length} videos for topic: ${topic}`);
-    } catch (err) {
-      console.error(`Error fetching topic "${topic}":`, err);
-    }
+    const videos = await fetchVideos(topic);
+    feed.push(...videos);
+    console.log(`Fetched ${videos.length} videos for topic: ${topic}`);
   }
 
   // Deduplicate
   feed = [...new Set(feed)];
+
   // Shuffle
   feed = shuffleArray(feed);
+
   // Save feed.json
-  fs.writeFileSync('feed.json', JSON.stringify(feed, null, 2));
-  console.log(`Feed generated with ${feed.length} videos.`);
+  try {
+    fs.writeFileSync('feed.json', JSON.stringify(feed, null, 2));
+    console.log(`Feed generated with ${feed.length} videos.`);
+  } catch (err) {
+    console.error("Error writing feed.json:", err);
+  }
 })();
