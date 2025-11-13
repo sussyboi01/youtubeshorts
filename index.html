@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Shorts Feed</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #000; color: #fff; }
+    #feed { display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 20px; }
+    iframe { width: 360px; height: 640px; border: none; border-radius: 10px; }
+  </style>
+</head>
+<body>
+  <h1 style="text-align:center;">Weekend YouTube Shorts Feed</h1>
+  <div id="feed"></div>
+
+  <script>
+    async function loadFeed() {
+      const res = await fetch('feed.json');
+      const videos = await res.json();
+      const container = document.getElementById('feed');
+
+      // Lazy load with IntersectionObserver
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if(entry.isIntersecting) {
+            const iframe = entry.target;
+            iframe.src = iframe.dataset.src;
+            observer.unobserve(iframe);
+          }
+        });
+      }, { rootMargin: "200px" });
+
+      videos.forEach(id => {
+        const iframe = document.createElement('iframe');
+        iframe.dataset.src = `https://www.youtube.com/embed/${id}?autoplay=0`;
+        container.appendChild(iframe);
+        observer.observe(iframe);
+      });
+    }
+
+    loadFeed();
+  </script>
+</body>
+</html>
