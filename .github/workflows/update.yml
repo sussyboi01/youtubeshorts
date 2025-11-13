@@ -4,6 +4,7 @@ name: Update YouTube Shorts Feed
 on:
   schedule:
     - cron: '0 0 * * 1-5'  # Monday to Friday
+  workflow_dispatch:
 
 jobs:
   update-feed:
