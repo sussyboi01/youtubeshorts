@@ -139,6 +139,9 @@ function setFrame(f,id,opts){
   f.dataset.video=id; f.src=buildEmbed(id,opts);
   if(f===frameCur){const newF=f.cloneNode(true); f.parentNode.replaceChild(newF,f); replaceFrameReference(f,newF); newF.addEventListener('load',()=>{setTimeout(()=>{readyToScroll=true;smoothScrollToMiddle(true);},150);},{once:true});}
 }
+function setSite() {
+  localStorage.setItem('whichsite', 'shorts');
+}
 
 function replaceFrameReference(oldEl,newEl){if(oldEl.id==='frame-prev') framePrev=newEl;if(oldEl.id==='frame-cur') frameCur=newEl;if(oldEl.id==='frame-next') frameNext=newEl;}
 
@@ -168,6 +171,7 @@ window.addEventListener('keydown',e=>{if(e.key==='ArrowDown') goNext(); if(e.key
 
 /* Load feed.json */
 async function loadFeed(){
+  setSite();
   try{
     const r=await fetch('feed.json',{cache:'no-store'}); 
     const data=await r.json(); 
