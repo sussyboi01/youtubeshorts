@@ -81,7 +81,7 @@ const toggleTheme = document.getElementById('toggleTheme');
 function shuffleArray(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
 feed = shuffleArray(feed);
 
-function getFavs(){ try{ return JSON.parse(localStorage.getItem('FavShorts')||'[]'); }catch(e){ return []; } }
+function getFavs(){ try{ return JSON.parse(localStorage.getItem('favshorts')||'[]'); }catch(e){ return []; } }
 function setFavs(a){ localStorage.setItem('FavShorts', JSON.stringify(a)); }
 function updateHeart(){ const f=getFavs(); const id = feed[curIdx]; if(!id){ favBtn.textContent='♡'; favBtn.classList.remove('faved'); return;} if(f.includes(id)){ favBtn.textContent='❤'; favBtn.classList.add('faved'); } else { favBtn.textContent='♡'; favBtn.classList.remove('faved'); } }
 
