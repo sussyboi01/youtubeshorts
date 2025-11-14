@@ -50,10 +50,24 @@
 /* ===========================
    Config & state
    =========================== */
-let feed = [
-  "dQw4w9WgXcQ","9bZkp7q19f0","3JZ_D3ELwOQ","L_jWHffIx5E","fJ9rUzIMcZQ",
-  "kJQP7kiw5Fk","hY7m5jjJ9mM","fLexgOxsZu0","uelHwf8o7_U","RgKAFK5djSk"
-]; // placeholder ids, client-side randomized
+let feed = []; // will be loaded from feed.json
+
+async function loadFeed() {
+  try {
+    const res = await fetch('feed.json', { cache: 'no-store' });
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      console.error('feed.json empty');
+      return;
+    }
+    feed = shuffleArray(data); // randomize on each load
+    curIdx = 0;
+    prepareFrames();
+    smoothScrollToMiddle(true);
+  } catch (e) {
+    console.error('Error loading feed.json', e);
+  }
+}
 
 let curIdx = 0;
 let unmuted = false;
@@ -220,6 +234,7 @@ function postCommand(frame,command,args=[]){ if(!frame||!frame.contentWindow) re
    Startup
    =========================== */
 prepareFrames();
+loadFeed();
 smoothScrollToMiddle(true);
 </script>
 </body>
