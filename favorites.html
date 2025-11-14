@@ -23,10 +23,17 @@
   <div id="grid" class="grid"></div>
 
 <script>
-function getFavs(){ try{ return JSON.parse(localStorage.getItem('FavShorts')||'[]'); }catch(e){ return []; } }
-const grid = document.getElementById('grid');
+function getFavs(){ 
+  try{ 
+    return JSON.parse(localStorage.getItem('favshorts')||'[]'); 
+  }catch(e){ 
+    return []; 
+  } 
+}
 
+const grid = document.getElementById('grid');
 const favs = getFavs();
+
 if(favs.length===0){
   grid.innerHTML = '<p>No favorites yet. ❤️</p>';
 } else {
@@ -34,29 +41,39 @@ if(favs.length===0){
     const tile = document.createElement('div');
     tile.className = 'tile';
     tile.innerHTML = `
-      <iframe src="https://www.youtube.com/embed/${id}?rel=0&modestbranding=1&playsinline=1" allow="autoplay; encrypted-media" loading="lazy"></iframe>
+      <div class="player-wrapper" style="width:100%; position:relative;">
+        <iframe src="https://www.youtube.com/embed/${id}?rel=0&modestbranding=1&playsinline=1" allow="autoplay; encrypted-media" loading="lazy"></iframe>
+      </div>
       <div style="display:flex; gap:8px; margin-top:8px;">
-        <button onclick="playVideo('${id}')">Play</button>
-        <button onclick="removeFav('${id}', this)">Remove</button>
+        <button class="playBtn">Play</button>
+        <button class="removeBtn">Remove</button>
       </div>
     `;
     grid.appendChild(tile);
+
+    // Play button logic — embed video in tile and autoplay
+    tile.querySelector('.playBtn').addEventListener('click', ()=>{
+      const wrapper = tile.querySelector('.player-wrapper');
+      const iframe = document.createElement('iframe');
+      iframe.src = `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
+      iframe.allow = "autoplay; encrypted-media; fullscreen";
+      iframe.loading = "lazy";
+      iframe.style.width = "100%";
+      iframe.style.height = "200px";
+      iframe.style.border = "none";
+      wrapper.innerHTML = ""; // remove existing iframe
+      wrapper.appendChild(iframe);
+    });
+
+    // Remove button logic
+    tile.querySelector('.removeBtn').addEventListener('click', ()=>{
+      let favs = getFavs();
+      favs = favs.filter(x=> x!==id);
+      localStorage.setItem('favshorts', JSON.stringify(favs));
+      tile.remove();
+      if(document.querySelectorAll('.tile').length===0) grid.innerHTML = '<p>No favorites yet. ❤️</p>';
+    });
   });
-}
-
-function playVideo(id){
-  // open in new window or open in a minimal player — for simplicity, open new tab
-  window.open(`https://www.youtube.com/watch?v=${id}`, '_blank');
-}
-
-function removeFav(id, btn){
-  let favs = getFavs();
-  favs = favs.filter(x => x !== id);
-  localStorage.setItem('FavShorts', JSON.stringify(favs));  // <-- fix key
-  // remove tile visually
-  btn.closest('.tile').remove();
-  if(document.querySelectorAll('.tile').length===0) 
-      grid.innerHTML = '<p>No favorites yet. ❤️</p>';
 }
 </script>
 </body>
