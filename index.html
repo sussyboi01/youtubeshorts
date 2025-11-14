@@ -1,140 +1,415 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Google Slides</title>
-<link rel="icon" href="https://gstatic.com/docs/presentations/images/favicon.png">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="https://gstatic.com/docs/presentations/images/presentations_logo144.png" type="image/png">
 
 <style>
-    body {
-        background: #000;
-        margin: 0;
-        overflow-y: scroll;
-        scroll-behavior: smooth;
-    }
+  :root { --bg:#0b0b0b; --panel:rgba(0,0,0,0.45); --text:#fff; --accent:#ff3b30; }
+  :root.light { --bg:#f6f7fb; --panel:rgba(255,255,255,0.75); --text:#111; --accent:#e64b3b; }
 
-    .videoWrapper {
-        height: 100vh;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        position: relative;
-    }
+  html,body { height:100%; margin:0; background:var(--bg); color:var(--text); font-family:Inter,Segoe UI,Roboto,Arial,sans-serif; overflow:hidden; }
+  /* three-viewport stack */
+  #stack { height:300vh; width:100%; overflow:visible; scroll-behavior:smooth; }
+  .slot { height:100vh; display:flex; align-items:center; justify-content:center; }
+  .player-frame { width:360px; height:640px; border-radius:16px; overflow:hidden; background:#000; box-shadow:0 10px 30px rgba(0,0,0,.6); border:1px solid rgba(255,255,255,.03); }
 
-    iframe {
-        width: 360px;
-        height: 640px;
-        border-radius: 20px;
-        border: none;
-        background: #111;
-    }
+  /* UI panel on right */
+  #ui {
+    position:fixed; right:16px; top:50%; transform:translateY(-50%);
+    display:flex; flex-direction:column; gap:10px; align-items:center;
+    background:var(--panel); padding:12px; border-radius:12px; backdrop-filter: blur(6px);
+  }
+  .btn { background:transparent; color:var(--text); border:1px solid rgba(255,255,255,.06); padding:8px 12px; border-radius:8px; cursor:pointer; min-width:92px; text-align:center; }
+  .icon-btn { font-size:22px; padding:8px; width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center; }
+  .heart { font-size:26px; cursor:pointer; user-select:none; }
+  .heart.faved { color:var(--accent); text-shadow:0 2px 8px rgba(0,0,0,.6); }
+  #toggleTheme { position:fixed; left:16px; top:16px; padding:8px 10px; border-radius:8px; background:var(--panel); cursor:pointer; }
 
-    /* Controls */
-    #favBtn {
-        position: fixed;
-        top: 25px;
-        right: 25px;
-        font-size: 38px;
-        cursor: pointer;
-        user-select: none;
-    }
+  /* small accessibility */
+  .sr-only { position:absolute; left:-9999px; }
 </style>
 </head>
-
 <body>
+  <button id="toggleTheme" title="Toggle theme">Theme</button>
 
-<div id="favBtn">🤍</div>
+  <div id="ui" aria-hidden="false">
+    <button id="upBtn" class="btn">▲ Up</button>
+    <button id="playPause" class="btn">⏸ Pause</button>
+    <button id="muteBtn" class="btn">🔇 Mute</button>
+    <button id="ccBtn" class="btn">CC</button>
+    <div id="favBtn" class="heart" title="Favorite">♡</div>
+    <button id="downBtn" class="btn">▼ Down</button>
+    <button id="gotoFav" class="btn">Favorites</button>
+  </div>
 
-<div class="videoWrapper"><iframe id="prevVid"></iframe></div>
-<div class="videoWrapper"><iframe id="currentVid"></iframe></div>
-<div class="videoWrapper"><iframe id="nextVid"></iframe></div>
+  <!-- 3-slot vertical stack: prev / current / next -->
+  <div id="stack" tabindex="0" aria-label="Shorts feed">
+    <div class="slot" id="slot-prev"><div class="player-frame"><iframe id="frame-prev" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div></div>
+    <div class="slot" id="slot-cur"><div class="player-frame"><iframe id="frame-cur" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div></div>
+    <div class="slot" id="slot-next"><div class="player-frame"><iframe id="frame-next" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div></div>
+  </div>
 
 <script>
-let feed = [];
-let index = 0;
-let favs = JSON.parse(localStorage.getItem("favorites") || "[]");
+/* ===========================
+   Config & state
+   =========================== */
+const FEED_PATH = 'feed.json';   // must exist in repo root
+let feed = [];                   // array of video IDs
+let curIdx = 0;                  // index into feed
+let unmuted = false;             // becomes true after first scroll
+let readyToScroll = false;       // block navigation until current iframe 'load' event
+let isTransitioning = false;     // block double triggers
 
-const prevFrame = document.getElementById("prevVid");
-const curFrame = document.getElementById("currentVid");
-const nextFrame = document.getElementById("nextVid");
-const favBtn = document.getElementById("favBtn");
+// elements
+const stack = document.getElementById('stack');
+const framePrev = document.getElementById('frame-prev');
+const frameCur  = document.getElementById('frame-cur');
+const frameNext = document.getElementById('frame-next');
 
-function updateHeart() {
-    const id = feed[index];
-    favBtn.textContent = favs.includes(id) ? "❤️" : "🤍";
+const upBtn = document.getElementById('upBtn');
+const downBtn = document.getElementById('downBtn');
+const playPauseBtn = document.getElementById('playPause');
+const muteBtn = document.getElementById('muteBtn');
+const ccBtn = document.getElementById('ccBtn');
+const favBtn = document.getElementById('favBtn');
+const gotoFav = document.getElementById('gotoFav');
+const toggleTheme = document.getElementById('toggleTheme');
+
+/* ===========================
+   Helpers: localStorage favorites & theme
+   =========================== */
+function getFavs(){ try{ return JSON.parse(localStorage.getItem('favorites')||'[]'); }catch(e){ return []; } }
+function setFavs(a){ localStorage.setItem('favorites', JSON.stringify(a)); }
+function updateHeart(){ const f=getFavs(); const id = feed[curIdx]; if (!id){ favBtn.textContent='♡'; favBtn.classList.remove('faved'); return; } if(f.includes(id)){ favBtn.textContent='❤'; favBtn.classList.add('faved'); } else { favBtn.textContent='♡'; favBtn.classList.remove('faved'); } }
+
+function getTheme(){ return localStorage.getItem('theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme:light)').matches ? 'light':'dark'); }
+function applyTheme(t){ document.documentElement.classList.toggle('light', t==='light'); localStorage.setItem('theme', t); }
+applyTheme(getTheme());
+
+toggleTheme.addEventListener('click', ()=>{
+  const t = getTheme() === 'light' ? 'dark' : 'light';
+  applyTheme(t);
+});
+
+/* ===========================
+   Utility: set iframe src with params
+   =========================== */
+function buildEmbed(id, opts = {}) {
+  // opts: mute (bool), autoplay (0/1), enablejsapi (1), modestbranding (1), playsinline (1)
+  const params = new URLSearchParams();
+  params.set('rel', '0');
+  if (opts.modestbranding) params.set('modestbranding','1');
+  if (opts.playsinline) params.set('playsinline','1');
+  if (opts.enablejsapi) params.set('enablejsapi','1');
+  params.set('autoplay', opts.autoplay? '1':'0');
+  params.set('mute', opts.mute? '1':'0');
+  // origin helps enablejsapi on some setups (not required for GitHub Pages but safe)
+  params.set('origin', location.origin);
+  return `https://www.youtube.com/embed/${id}?${params.toString()}`;
 }
 
-async function loadFeed() {
-    const res = await fetch("feed.json");
-    feed = await res.json();
-
-    loadAll();
+/* ===========================
+   Load feed.json
+   =========================== */
+async function loadFeed(){
+  try{
+    const r = await fetch(FEED_PATH, {cache:'no-store'});
+    feed = await r.json();
+    if(!Array.isArray(feed) || feed.length===0) { console.error('feed.json empty'); return; }
+    // clamp index to available
+    curIdx = 0;
+    // init frames
+    prepareFrames();
+    // snap to center (middle slot)
+    // set scroll to middle slot:
+    requestAnimationFrame(()=> window.scrollTo({top: window.innerHeight, behavior:'instant' || 'auto'}));
+  }catch(e){ console.error('Error loading feed.json', e); }
 }
 
-function loadAll() {
-    loadFrame(curFrame, feed[index]);
-    loadFrame(nextFrame, feed[index + 1]);
-    updateHeart();
+/* ===========================
+   Prepare frames (cur, prev, next)
+   Only 3 iframes are used and rotated
+   =========================== */
+function prepareFrames(){
+  // set current/muted (start muted). We'll unmute after first user scroll interaction
+  const curId = feed[curIdx];
+  const prevId = feed[curIdx-1];
+  const nextId = feed[curIdx+1];
+
+  // Start blocked until current frame signals load
+  readyToScroll = false;
+
+  setFrame(framePrev, prevId, {autoplay:0, mute: true});
+  setFrame(frameCur,  curId,  {autoplay:1, mute: true});
+  setFrame(frameNext, nextId, {autoplay:0, mute: true});
+  updateHeart();
 }
 
-function loadFrame(frame, id) {
-    if (!id) return;
-    frame.src = `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&playsinline=1`;
+// set iframe src and attach load handler that marks readiness for current frame
+function setFrame(frame, id, opts){
+  if(!id){ frame.src = 'about:blank'; return; }
+  frame.dataset.video = id;
+  frame.src = buildEmbed(id, opts);
+  // If frame is current, mark when it's loaded
+  if(frame===frameCur){
+    // remove previous listener by cloning node
+    const newFrame = frame.cloneNode(true);
+    frame.parentNode.replaceChild(newFrame, frame);
+    // update references
+    replaceFrameReference(frame, newFrame);
+    // attach load handler
+    newFrame.addEventListener('load', ()=> {
+      // small delay to let player initialize
+      setTimeout(()=> {
+        readyToScroll = true;
+        // center viewport on middle slot
+        smoothScrollToMiddle();
+      }, 150);
+    }, { once: true });
+  }
 }
 
-function onScroll() {
-    const pos = window.scrollY;
-    const height = window.innerHeight;
-
-    if (pos > height * 1.2) {
-        next();
-        window.scrollTo(0, height);
-    } else if (pos < height * 0.8) {
-        previous();
-        window.scrollTo(0, height);
-    }
+// helper to update global refs if we replaced node
+function replaceFrameReference(oldEl, newEl){
+  if (oldEl.id==='frame-prev') window.framePrev = document.getElementById('frame-prev');
+  if (oldEl.id==='frame-cur')  window.frameCur  = document.getElementById('frame-cur');
+  if (oldEl.id==='frame-next') window.frameNext = document.getElementById('frame-next');
+  // update local references used in code
+  framePrev = document.getElementById('frame-prev');
+  frameCur  = document.getElementById('frame-cur');
+  frameNext = document.getElementById('frame-next');
 }
 
-function next() {
-    index = index + 1;
-    rotateFrames();
+/* ===========================
+   Scrolling helpers & navigation
+   - block nav until readyToScroll true
+   - on first scroll -> unmute future videos
+   - smooth animate to middle slot
+   =========================== */
+let firstUserScroll = true;
+
+function smoothScrollToMiddle(){
+  // center on the middle slot (slot index 1)
+  const top = window.innerHeight; // middle slot top
+  window.scrollTo({ top, behavior: 'smooth' });
 }
 
-function previous() {
-    if (index === 0) return;
-    index = index - 1;
-    rotateFrames();
+function allowNav(){
+  return readyToScroll && !isTransitioning && feed.length>0;
 }
 
-function rotateFrames() {
-    // Swap iframe elements visually
-    const oldPrev = prevFrame.src;
-    prevFrame.src = curFrame.src;
-    curFrame.src = nextFrame.src;
-
-    // Load new "next" video
-    loadFrame(nextFrame, feed[index + 1]);
-
-    updateHeart();
+function handleWheel(e){
+  if(!allowNav()){
+    e.preventDefault();
+    return;
+  }
+  if(firstUserScroll){
+    // treat as user interaction
+    unmuteAllFuture();
+    firstUserScroll = false;
+  }
+  if(e.deltaY > 30){
+    goNext();
+  } else if(e.deltaY < -30){
+    goPrev();
+  }
 }
 
-favBtn.onclick = () => {
-    const id = feed[index];
+function handleKey(e){
+  if(!allowNav()) { e.preventDefault(); return; }
+  if(e.key === 'ArrowDown'){ if(firstUserScroll){ unmuteAllFuture(); firstUserScroll=false; } goNext(); }
+  if(e.key === 'ArrowUp'){ if(firstUserScroll){ unmuteAllFuture(); firstUserScroll=false; } goPrev(); }
+}
 
-    if (favs.includes(id)) {
-        favs = favs.filter(x => x !== id);
-    } else {
-        favs.push(id);
-    }
+/* navigate functions */
+function goNext(){
+  if(isTransitioning) return;
+  if(curIdx >= feed.length-1) return; // end
+  isTransitioning = true;
+  curIdx++;
+  rotateForward();
+}
 
-    localStorage.setItem("favorites", JSON.stringify(favs));
-    updateHeart();
-};
+function goPrev(){
+  if(isTransitioning) return;
+  if(curIdx <= 0) return;
+  isTransitioning = true;
+  curIdx--;
+  rotateBackward();
+}
 
-window.addEventListener("scroll", onScroll);
+/* rotating frames: reuse 3 iframes to avoid heavy re-creation */
+function rotateForward(){
+  // Unload prev frame
+  framePrev.src = 'about:blank';
+  // shift frames: prev <- cur, cur <- next, next <- new
+  const oldPrev = framePrev;
+  const oldCur  = frameCur;
+  const oldNext = frameNext;
+
+  // Move DOM nodes: easiest is to swap dataset and src rather than nodes
+  // Step 1: set prev = current src
+  framePrev.src = oldCur.src;
+  framePrev.dataset.video = oldCur.dataset.video;
+
+  // Step 2: set current = next src
+  frameCur.src = oldNext.src;
+  frameCur.dataset.video = oldNext.dataset.video;
+
+  // Step 3: set next = new index+1
+  const newNextId = feed[curIdx+1];
+  if(newNextId) frameNext.src = buildEmbed(newNextId, {autoplay:0, mute:!unmuted});
+  else frameNext.src = 'about:blank';
+
+  updateHeart();
+  // animate scroll to middle to make it flush
+  smoothScrollToMiddle();
+
+  // small timeout for transition end (tune as needed)
+  setTimeout(()=> { isTransitioning = false; readyToScroll = true; }, 420);
+}
+
+function rotateBackward(){
+  // Unload next frame
+  frameNext.src = 'about:blank';
+
+  // Move data: next <- current, current <- prev, prev <- new
+  frameNext.src = frameCur.src;
+  frameNext.dataset.video = frameCur.dataset.video;
+
+  frameCur.src = framePrev.src;
+  frameCur.dataset.video = framePrev.dataset.video;
+
+  const newPrevId = feed[curIdx-1];
+  if(newPrevId) framePrev.src = buildEmbed(newPrevId, {autoplay:0, mute:!unmuted});
+  else framePrev.src = 'about:blank';
+
+  updateHeart();
+  smoothScrollToMiddle();
+  setTimeout(()=> { isTransitioning = false; readyToScroll = true; }, 420);
+}
+
+/* Unmute on first user scroll: reload cur+next with mute=0 and autoplay=1 */
+function unmuteAllFuture(){
+  unmuted = true;
+  // reload current and next with sound enabled without disrupting play if possible
+  const curId = frameCur.dataset.video;
+  const nextId = frameNext.dataset.video;
+  if(curId) frameCur.src = buildEmbed(curId, {autoplay:1, mute:false, enablejsapi:1, modestbranding:1, playsinline:1});
+  if(nextId) frameNext.src = buildEmbed(nextId, {autoplay:0, mute:false, enablejsapi:1, modestbranding:1, playsinline:1});
+  // update UI mute button
+  muteBtn.textContent = '🔊 Unmute';
+}
+
+/* ===========================
+   Play/Pause & Mute & CC handlers (via postMessage to YouTube iframe API)
+   - We set enablejsapi=1 when we want to send commands,
+   - postMessage JSON structure follows YouTube iframe API messaging
+   =========================== */
+function postCommandToFrame(frame, command, args=[]){
+  if(!frame || !frame.contentWindow) return;
+  try {
+    frame.contentWindow.postMessage(JSON.stringify({ event: 'command', func: command, args }), '*');
+  } catch(e){}
+}
+
+playPauseBtn.addEventListener('click', ()=>{
+  // toggle using play/pause via postMessage
+  postCommandToFrame(frameCur, 'getPlayerState'); // optional probe
+  // we cannot reliably query state, so toggle by posting pause then play based on manual flag
+  // simpler approach: request pause, then change UI — user can press again
+  postCommandToFrame(frameCur, 'pauseVideo');
+  // after a short delay call play if we think it was paused; for safety we'll toggle UI label
+  // Try to alternate label
+  if(playPauseBtn.textContent.includes('Pause')) {
+    postCommandToFrame(frameCur, 'pauseVideo');
+    playPauseBtn.textContent = '▶ Play';
+  } else {
+    postCommandToFrame(frameCur, 'playVideo');
+    playPauseBtn.textContent = '⏸ Pause';
+  }
+});
+
+muteBtn.addEventListener('click', ()=>{
+  // toggle mute by reloading current frame with mute param flip
+  // read current dataset to know id
+  const id = frameCur.dataset.video;
+  if(!id) return;
+  if(unmuted){
+    // user had unmuted; mute now
+    unmuted = false;
+    frameCur.src = buildEmbed(id, {autoplay:1, mute:true, enablejsapi:1, modestbranding:1, playsinline:1});
+    muteBtn.textContent = '🔇 Mute';
+  } else {
+    unmuted = true;
+    frameCur.src = buildEmbed(id, {autoplay:1, mute:false, enablejsapi:1, modestbranding:1, playsinline:1});
+    muteBtn.textContent = '🔊 Unmute';
+  }
+  // ensure next frame updated too
+  const nextId = frameNext.dataset.video;
+  if(nextId) frameNext.src = buildEmbed(nextId, {autoplay:0, mute: !unmuted, enablejsapi:1, modestbranding:1, playsinline:1});
+});
+
+ccBtn.addEventListener('click', ()=>{
+  // Ask player to toggle captions (best-effort)
+  // This uses setOption via postMessage for captions — may not work for every video
+  const trackObj = { languageCode: 'en' };
+  postCommandToFrame(frameCur, 'loadModule', ['captions']);
+  postCommandToFrame(frameCur, 'setOption', ['captions', 'track', trackObj]);
+});
+
+favBtn.addEventListener('click', ()=>{
+  const id = feed[curIdx];
+  if(!id) return;
+  let favs = getFavs();
+  if(favs.includes(id)) favs = favs.filter(x=>x!==id);
+  else favs.push(id);
+  setFavs(favs);
+  updateHeart();
+});
+
+/* goto favorites page */
+gotoFav.addEventListener('click', ()=> location.href = 'favorites.html');
+
+/* Buttons up/down */
+upBtn.addEventListener('click', ()=> { if(firstUserScroll){ unmuteAllFuture(); firstUserScroll=false; } goPrev(); });
+downBtn.addEventListener('click', ()=> { if(firstUserScroll){ unmuteAllFuture(); firstUserScroll=false; } goNext(); });
+
+/* ===========================
+   Input listeners: wheel and key
+   =========================== */
+let wheelTimeout;
+window.addEventListener('wheel', (e)=> {
+  // throttle wheel events
+  clearTimeout(wheelTimeout);
+  wheelTimeout = setTimeout(()=> handleWheel(e), 10);
+}, { passive:false });
+
+function handleWheel(e){
+  if(!readyToScroll || isTransitioning) { e.preventDefault(); return; }
+  if(firstUserScroll){ unmuteAllFuture(); firstUserScroll=false; }
+  if(e.deltaY > 40) goNext();
+  else if(e.deltaY < -40) goPrev();
+}
+
+window.addEventListener('keydown', (e)=> {
+  if(e.key === 'ArrowDown'){ if(firstUserScroll){ unmuteAllFuture(); firstUserScroll=false; } goNext(); }
+  if(e.key === 'ArrowUp'){ if(firstUserScroll){ unmuteAllFuture(); firstUserScroll=false; } goPrev(); }
+});
+
+/* Prevent native scrolling jump: keep scroll locked to middle slot */
+window.addEventListener('scroll', ()=> {
+  // keep the viewport glued to middle slot unless transitioning (let smooth scroll do it)
+  // After initial load we will ensure it's centered on middle; user-triggered scroll is handled above
+});
+
+/* ===========================
+   Startup
+   =========================== */
 loadFeed();
 </script>
-
 </body>
 </html>
