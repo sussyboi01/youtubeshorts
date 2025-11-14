@@ -111,8 +111,8 @@ let frameNext=document.getElementById('frame-next');
 const toggleThemeButtons = document.querySelectorAll('#toggleTheme');
 
 function shuffleArray(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
-function getFavs(){try{return JSON.parse(localStorage.getItem('FavShorts')||'[]');}catch(e){return[];}}
-function setFavs(a){localStorage.setItem('FavShorts',JSON.stringify(a));}
+function getFavs(){try{return JSON.parse(localStorage.getItem('favshorts')||'[]');}catch(e){return[];}}
+function setFavs(a){localStorage.setItem('favshorts',JSON.stringify(a));}
 function updateHeart(){const f=getFavs();const id=feed[curIdx];if(!id){document.querySelectorAll('.heart').forEach(h=>{h.textContent='♡';h.classList.remove('faved');}); return;} const hearts=document.querySelectorAll('.heart'); hearts.forEach(h=>{if(f.includes(id)){h.textContent='❤';h.classList.add('faved');} else {h.textContent='♡';h.classList.remove('faved');}});}
 
 function getTheme(){return localStorage.getItem('theme')||'dark';}
