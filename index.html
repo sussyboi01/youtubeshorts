@@ -14,55 +14,63 @@
   #stack { height:300vh; width:100%; overflow:visible; scroll-behavior:smooth; }
 
   .slot {
-    height:100vh;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    gap:16px; /* space between video and controls */
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    flex-direction: row;
   }
-
+   
   .player-frame {
-    width:360px;
-    height:640px;
-    border-radius:16px;
-    overflow:hidden;
-    background:#000;
-    box-shadow:0 10px 30px rgba(0,0,0,.6);
-    border:1px solid rgba(255,255,255,.03);
+    width: 360px;
+    height: 640px;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #000;
+    box-shadow: 0 10px 30px rgba(0,0,0,.6);
+    border: 1px solid rgba(255,255,255,.03);
+    flex-shrink: 0;
   }
-
   .player-frame iframe { width:100%; height:100%; border:none; }
 
   #ui {
-    display:flex;
-    flex-direction:column;
-    gap:10px;
-    align-items:center;
-    background:var(--panel);
-    padding:12px;
-    border-radius:12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+    background: var(--panel);
+    padding: 12px;
+    border-radius: 12px;
     backdrop-filter: blur(6px);
-    min-width:120px;
+    min-width: 120px;
+    flex-shrink: 0;
   }
 
   .btn { background:transparent; color:var(--text); border:1px solid rgba(255,255,255,.06); padding:8px 12px; border-radius:8px; cursor:pointer; text-align:center; }
   .heart { font-size:26px; cursor:pointer; user-select:none; }
   .heart.faved { color:var(--accent); text-shadow:0 2px 8px rgba(0,0,0,.6); }
-  #toggleTheme { position:fixed; left:16px; top:16px; padding:8px 10px; border-radius:8px; background:var(--panel); cursor:pointer; }
+
+  #toggleTheme {
+    position: static;
+    margin-bottom: 12px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--panel);
+    cursor: pointer;
+    color: var(--text);
+  }
 </style>
 </head>
 <body>
-<button id="toggleTheme" title="Toggle theme">Theme</button>
 
 <div id="stack" tabindex="0" aria-label="Shorts feed">
   <!-- Slot template -->
   <div class="slot" id="slot-prev">
     <div class="player-frame"><iframe id="frame-prev" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div>
     <div id="ui">
+      <button id="toggleTheme" title="Toggle theme">Theme</button>
       <button id="upBtn" class="btn">▲ Up</button>
-      <button id="playPause" class="btn">⏸ Pause</button>
-      <button id="muteBtn" class="btn">🔊 Unmute</button>
-      <button id="ccBtn" class="btn">CC</button>
       <div id="favBtn" class="heart" title="Favorite">♡</div>
       <button id="downBtn" class="btn">▼ Down</button>
       <button id="gotoFav" class="btn">Favorites</button>
@@ -72,10 +80,8 @@
   <div class="slot" id="slot-cur">
     <div class="player-frame"><iframe id="frame-cur" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div>
     <div id="ui">
+      <button id="toggleTheme" title="Toggle theme">Theme</button>
       <button id="upBtn" class="btn">▲ Up</button>
-      <button id="playPause" class="btn">⏸ Pause</button>
-      <button id="muteBtn" class="btn">🔊 Unmute</button>
-      <button id="ccBtn" class="btn">CC</button>
       <div id="favBtn" class="heart" title="Favorite">♡</div>
       <button id="downBtn" class="btn">▼ Down</button>
       <button id="gotoFav" class="btn">Favorites</button>
@@ -85,6 +91,7 @@
   <div class="slot" id="slot-next">
     <div class="player-frame"><iframe id="frame-next" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div>
     <div id="ui">
+      <button id="toggleTheme" title="Toggle theme">Theme</button>
       <button id="upBtn" class="btn">▲ Up</button>
       <div id="favBtn" class="heart" title="Favorite">♡</div>
       <button id="downBtn" class="btn">▼ Down</button>
@@ -101,7 +108,7 @@ let framePrev=document.getElementById('frame-prev');
 let frameCur=document.getElementById('frame-cur');
 let frameNext=document.getElementById('frame-next');
 
-const toggleTheme=document.getElementById('toggleTheme');
+const toggleThemeButtons = document.querySelectorAll('#toggleTheme');
 
 function shuffleArray(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function getFavs(){try{return JSON.parse(localStorage.getItem('FavShorts')||'[]');}catch(e){return[];}}
@@ -109,9 +116,13 @@ function setFavs(a){localStorage.setItem('FavShorts',JSON.stringify(a));}
 function updateHeart(){const f=getFavs();const id=feed[curIdx];if(!id){document.querySelectorAll('.heart').forEach(h=>{h.textContent='♡';h.classList.remove('faved');}); return;} const hearts=document.querySelectorAll('.heart'); hearts.forEach(h=>{if(f.includes(id)){h.textContent='❤';h.classList.add('faved');} else {h.textContent='♡';h.classList.remove('faved');}});}
 
 function getTheme(){return localStorage.getItem('theme')||'dark';}
-function applyTheme(t){document.documentElement.classList.toggle('light',t==='light');localStorage.setItem('theme',t);toggleTheme.style.color=t==='light'?'black':'white';}
+function applyTheme(t){
+  document.documentElement.classList.toggle('light',t==='light');
+  localStorage.setItem('theme',t);
+  toggleThemeButtons.forEach(btn => btn.style.color = t==='light' ? 'black' : 'white');
+}
 applyTheme(getTheme());
-toggleTheme.addEventListener('click',()=>{applyTheme(getTheme()==='light'?'dark':'light');});
+toggleThemeButtons.forEach(btn => btn.addEventListener('click',()=>{applyTheme(getTheme()==='light'?'dark':'light');}));
 
 function buildEmbed(id,opts={}){const p=new URLSearchParams();p.set('rel','0');if(opts.modestbranding)p.set('modestbranding','1');if(opts.playsinline)p.set('playsinline','1');if(opts.enablejsapi)p.set('enablejsapi','1');p.set('autoplay',opts.autoplay?'1':'1');p.set('mute',opts.mute?'1':'0');p.set('origin',location.origin);return `https://www.youtube.com/embed/${id}?${p.toString()}`;}
 
@@ -135,16 +146,13 @@ function smoothScrollToMiddle(instant=false){window.scrollTo({top:window.innerHe
 function goNext(){if(isTransitioning||curIdx>=feed.length-1) return; isTransitioning=true; curIdx++; rotateForward(); }
 function goPrev(){if(isTransitioning||curIdx<=0) return; isTransitioning=true; curIdx--; rotateBackward(); }
 function rotateForward(){framePrev.src='about:blank'; framePrev.src=frameCur.src; framePrev.dataset.video=frameCur.dataset.video; frameCur.src=frameNext.src; frameCur.dataset.video=frameNext.dataset.video; const newNext=feed[curIdx+1]; if(newNext) frameNext.src=buildEmbed(newNext,{autoplay:1,mute:false}); else frameNext.src='about:blank'; updateHeart(); smoothScrollToMiddle(); setTimeout(()=>{isTransitioning=false;readyToScroll=true;},420);}
-function rotateBackward(){frameNext.src='about:blank'; frameNext.src=frameCur.src; frameNext.dataset.video=frameCur.dataset.video; frameCur.src=framePrev.src; frameCur.dataset.video=framePrev.dataset.video; const newPrev=feed[curIdx-1]; if(newPrev) framePrev.src=buildEmbed(newPrev,{autoplay:1,mute:false}); else framePrev.src='about:blank'; updateHeart(); smoothScrollToMiddle(); setTimeout(()=>{isTransitioning=false;readyToScroll=true;},420);}
+function rotateBackward(){frameNext.src='about:blank'; frameNext.src=frameCur.src; frameCur.dataset.video=frameCur.dataset.video; frameCur.src=framePrev.src; frameCur.dataset.video=framePrev.dataset.video; const newPrev=feed[curIdx-1]; if(newPrev) framePrev.src=buildEmbed(newPrev,{autoplay:1,mute:false}); else framePrev.src='about:blank'; updateHeart(); smoothScrollToMiddle(); setTimeout(()=>{isTransitioning=false;readyToScroll=true;},420);}
 
 /* buttons */
 document.querySelectorAll('.btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
     if(btn.id==='upBtn') goPrev();
     if(btn.id==='downBtn') goNext();
-    if(btn.id==='playPause'){postCommand(frameCur,'pauseVideo');}
-    if(btn.id==='muteBtn'){unmuted=!unmuted; const id=frameCur.dataset.video; frameCur.src=buildEmbed(id,{autoplay:1,mute:!unmuted});}
-    if(btn.id==='ccBtn'){postCommand(frameCur,'loadModule',['captions']);}
     if(btn.id==='gotoFav'){window.location='favorites.html';}
   });
 });
@@ -158,9 +166,7 @@ function postCommand(frame,command,args=[]){if(!frame||!frame.contentWindow) ret
 window.addEventListener('wheel',e=>{if(!readyToScroll||isTransitioning){e.preventDefault();return;} if(e.deltaY>40) goNext(); else if(e.deltaY<-40) goPrev();},{passive:false});
 window.addEventListener('keydown',e=>{if(e.key==='ArrowDown') goNext(); if(e.key==='ArrowUp') goPrev();});
 
-/* ===========================
-   Load feed.json
-   =========================== */
+/* Load feed.json */
 async function loadFeed(){
   try{
     const r=await fetch('feed.json',{cache:'no-store'}); 
