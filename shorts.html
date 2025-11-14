@@ -50,16 +50,6 @@
   .btn { background:transparent; color:var(--text); border:1px solid rgba(255,255,255,.06); padding:8px 12px; border-radius:8px; cursor:pointer; text-align:center; }
   .heart { font-size:26px; cursor:pointer; user-select:none; }
   .heart.faved { color:var(--accent); text-shadow:0 2px 8px rgba(0,0,0,.6); }
-
-  #toggleTheme {
-    position: static;
-    margin-bottom: 12px;
-    padding: 8px 10px;
-    border-radius: 8px;
-    background: var(--panel);
-    cursor: pointer;
-    color: var(--text);
-  }
 </style>
 </head>
 <body>
@@ -69,7 +59,6 @@
   <div class="slot" id="slot-prev">
     <div class="player-frame"><iframe id="frame-prev" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div>
     <div id="ui">
-      <button id="toggleTheme" title="Toggle theme">Black/White mode</button>
       <button id="upBtn" class="btn">▲ Up</button>
       <div id="favBtn" class="heart" title="Favorite">♡</div>
       <button id="downBtn" class="btn">▼ Down</button>
@@ -81,7 +70,6 @@
   <div class="slot" id="slot-cur">
     <div class="player-frame"><iframe id="frame-cur" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div>
     <div id="ui">
-      <button id="toggleTheme" title="Toggle theme">Black/White mode</button>
       <button id="upBtn" class="btn">▲ Up</button>
       <div id="favBtn" class="heart" title="Favorite">♡</div>
       <button id="downBtn" class="btn">▼ Down</button>
@@ -93,7 +81,6 @@
   <div class="slot" id="slot-next">
     <div class="player-frame"><iframe id="frame-next" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div>
     <div id="ui">
-      <button id="toggleTheme" title="Toggle theme">Black/White mode</button>
       <button id="upBtn" class="btn">▲ Up</button>
       <div id="favBtn" class="heart" title="Favorite">♡</div>
       <button id="downBtn" class="btn">▼ Down</button>
@@ -104,82 +91,98 @@
 </div>
 
 <script>
-let feed=[], curIdx=0, unmuted=true, readyToScroll=false, isTransitioning=false;
+let feed=[], curIdx=0;
 
-const stack=document.getElementById('stack');
-let framePrev=document.getElementById('frame-prev');
-let frameCur=document.getElementById('frame-cur');
-let frameNext=document.getElementById('frame-next');
-
-const toggleThemeButtons = document.querySelectorAll('#toggleTheme');
+const framePrev=document.getElementById('frame-prev');
+const frameCur=document.getElementById('frame-cur');
+const frameNext=document.getElementById('frame-next');
 
 function shuffleArray(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
-function getFavs(){try{return JSON.parse(localStorage.getItem('favshorts')||'[]');}catch(e){return[];}}
-function setFavs(a){localStorage.setItem('favshorts',JSON.stringify(a));}
-function updateHeart(){const f=getFavs();const id=feed[curIdx];if(!id){document.querySelectorAll('.heart').forEach(h=>{h.textContent='♡';h.classList.remove('faved');}); return;} const hearts=document.querySelectorAll('.heart'); hearts.forEach(h=>{if(f.includes(id)){h.textContent='❤';h.classList.add('faved');} else {h.textContent='♡';h.classList.remove('faved');}});}
 
-function getTheme(){return localStorage.getItem('theme')||'dark';}
-function applyTheme(t){
-  document.documentElement.classList.toggle('light',t==='light');
-  localStorage.setItem('theme',t);
-  toggleThemeButtons.forEach(btn => btn.style.color = t==='light' ? 'black' : 'white');
-}
-applyTheme(getTheme());
-toggleThemeButtons.forEach(btn => btn.addEventListener('click',()=>{applyTheme(getTheme()==='light'?'dark':'light');}));
-
-function buildEmbed(id,opts={}){const p=new URLSearchParams();p.set('rel','0');if(opts.modestbranding)p.set('modestbranding','1');if(opts.playsinline)p.set('playsinline','1');if(opts.enablejsapi)p.set('enablejsapi','1');p.set('autoplay',opts.autoplay?'1':'1');p.set('mute',opts.mute?'1':'0');p.set('origin',location.origin);return `https://www.youtube.com/embed/${id}?${p.toString()}`;}
-
-function prepareFrames(){
-  readyToScroll=false;
-  setFrame(framePrev,feed[curIdx-1],{autoplay:1,mute:false});
-  setFrame(frameCur,feed[curIdx],{autoplay:1,mute:false});
-  setFrame(frameNext,feed[curIdx+1],{autoplay:1,mute:false});
-  updateHeart();
+function buildEmbed(id){
+  const p = new URLSearchParams();
+  p.set('rel','0');
+  p.set('autoplay','1');
+  p.set('mute','0');
+  p.set('enablejsapi','1');
+  p.set('playsinline','1');
+  return `https://www.youtube.com/embed/${id}?${p.toString()}`;
 }
 
-function setFrame(f,id,opts){
+// Preload frames
+function setFrame(f,id,isCurrent=false){
   if(!id){ f.src='about:blank'; return; }
-  f.dataset.video=id; f.src=buildEmbed(id,opts);
-  if(f===frameCur){const newF=f.cloneNode(true); f.parentNode.replaceChild(newF,f); replaceFrameReference(f,newF); newF.addEventListener('load',()=>{setTimeout(()=>{readyToScroll=true;smoothScrollToMiddle(true);},150);},{once:true});}
+  f.dataset.video=id;
+  f.src=buildEmbed(id);
+  f.onload = ()=>{
+    if(isCurrent) postCommand(f,'playVideo'); 
+    else postCommand(f,'pauseVideo');
+  };
 }
 
-function replaceFrameReference(oldEl,newEl){if(oldEl.id==='frame-prev') framePrev=newEl;if(oldEl.id==='frame-cur') frameCur=newEl;if(oldEl.id==='frame-next') frameNext=newEl;}
+function rotateForward(){
+  if(curIdx>=feed.length-1) return;
+  curIdx++;
+  setFrame(framePrev, feed[curIdx-1], false);
+  setFrame(frameCur, feed[curIdx], true);
+  setFrame(frameNext, feed[curIdx+1], false);
+}
 
-function smoothScrollToMiddle(instant=false){window.scrollTo({top:window.innerHeight,behavior:instant?'auto':'smooth'});}
-function goNext(){if(isTransitioning||curIdx>=feed.length-1) return; isTransitioning=true; curIdx++; rotateForward(); }
-function goPrev(){if(isTransitioning||curIdx<=0) return; isTransitioning=true; curIdx--; rotateBackward(); }
-function rotateForward(){framePrev.src='about:blank'; framePrev.src=frameCur.src; framePrev.dataset.video=frameCur.dataset.video; frameCur.src=frameNext.src; frameCur.dataset.video=frameNext.dataset.video; const newNext=feed[curIdx+1]; if(newNext) frameNext.src=buildEmbed(newNext,{autoplay:1,mute:false}); else frameNext.src='about:blank'; updateHeart(); smoothScrollToMiddle(); setTimeout(()=>{isTransitioning=false;readyToScroll=true;},420);}
-function rotateBackward(){frameNext.src='about:blank'; frameNext.src=frameCur.src; frameCur.dataset.video=frameCur.dataset.video; frameCur.src=framePrev.src; frameCur.dataset.video=framePrev.dataset.video; const newPrev=feed[curIdx-1]; if(newPrev) framePrev.src=buildEmbed(newPrev,{autoplay:1,mute:false}); else framePrev.src='about:blank'; updateHeart(); smoothScrollToMiddle(); setTimeout(()=>{isTransitioning=false;readyToScroll=true;},420);}
+function rotateBackward(){
+  if(curIdx<=0) return;
+  curIdx--;
+  setFrame(framePrev, feed[curIdx-1], false);
+  setFrame(frameCur, feed[curIdx], true);
+  setFrame(frameNext, feed[curIdx+1], false);
+}
 
-/* buttons */
+function postCommand(frame,command){
+  if(!frame||!frame.contentWindow) return;
+  frame.contentWindow.postMessage(JSON.stringify({event:'command',func:command,args:[]}),'*');
+}
+
+/* Buttons */
 document.querySelectorAll('.btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
-    if(btn.id==='upBtn') goPrev();
-    if(btn.id==='downBtn') goNext();
-    if(btn.id==='gotoFav'){window.location='favorites.html';}
-    if(btn.id==='gotoYT'){window.location='index.html';}
+    if(btn.id==='upBtn') rotateBackward();
+    if(btn.id==='downBtn') rotateForward();
+    if(btn.id==='gotoFav') window.location='favorites.html';
+    if(btn.id==='gotoYT') window.location='index.html';
   });
 });
-document.querySelectorAll('.heart').forEach(h=>h.addEventListener('click',()=>{
-  const id=feed[curIdx]; if(!id) return; let f=getFavs(); if(f.includes(id)) f=f.filter(x=>x!==id); else f.push(id); setFavs(f); updateHeart();
-}));
 
-function postCommand(frame,command,args=[]){if(!frame||!frame.contentWindow) return; try{frame.contentWindow.postMessage(JSON.stringify({event:'command',func:command,args}),'*');}catch(e){}}
+document.querySelectorAll('.heart').forEach(h=>{
+  h.addEventListener('click',()=>{
+    const id = feed[curIdx];
+    if(!id) return;
+    let f = JSON.parse(localStorage.getItem('favshorts')||'[]');
+    if(f.includes(id)) f=f.filter(x=>x!==id); else f.push(id);
+    localStorage.setItem('favshorts', JSON.stringify(f));
+  });
+});
 
-/* keyboard/wheel navigation */
-window.addEventListener('wheel',e=>{if(!readyToScroll||isTransitioning){e.preventDefault();return;} if(e.deltaY>40) goNext(); else if(e.deltaY<-40) goPrev();},{passive:false});
-window.addEventListener('keydown',e=>{if(e.key==='ArrowDown') goNext(); if(e.key==='ArrowUp') goPrev();});
+/* Keyboard/Wheel navigation */
+window.addEventListener('wheel', e=>{ if(e.deltaY>40) rotateForward(); else if(e.deltaY<-40) rotateBackward(); },{passive:false});
+window.addEventListener('keydown', e=>{ if(e.key==='ArrowDown') rotateForward(); if(e.key==='ArrowUp') rotateBackward(); });
 
 /* Load feed.json */
 async function loadFeed(){
   try{
-    const r=await fetch('feed.json',{cache:'no-store'}); 
-    const data=await r.json(); 
-    if(!Array.isArray(data)||data.length===0) return; 
-    feed=shuffleArray(data); curIdx=0; prepareFrames(); smoothScrollToMiddle(true);
+    const r = await fetch('feed.json',{cache:'no-store'});
+    const data = await r.json();
+    if(!Array.isArray(data)||data.length===0) return;
+    feed = shuffleArray(data); 
+    curIdx = 0;
+    setFrame(framePrev, feed[curIdx-1], false);
+    setFrame(frameCur, feed[curIdx], true);
+    setFrame(frameNext, feed[curIdx+1], false);
   }catch(e){console.error(e);}
 }
 loadFeed();
 </script>
+
+<!-- YouTube IFrame API -->
+<script src="https://www.youtube.com/iframe_api"></script>
+
 </body>
 </html>
