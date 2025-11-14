@@ -51,11 +51,12 @@ function playVideo(id){
 
 function removeFav(id, btn){
   let favs = getFavs();
-  favs = favs.filter(x=> x!==id);
-  localStorage.setItem('favorites', JSON.stringify(favs));
+  favs = favs.filter(x => x !== id);
+  localStorage.setItem('FavShorts', JSON.stringify(favs));  // <-- fix key
   // remove tile visually
   btn.closest('.tile').remove();
-  if(document.querySelectorAll('.tile').length===0) grid.innerHTML = '<p>No favorites yet. ❤️</p>';
+  if(document.querySelectorAll('.tile').length===0) 
+      grid.innerHTML = '<p>No favorites yet. ❤️</p>';
 }
 </script>
 </body>
