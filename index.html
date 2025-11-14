@@ -1,45 +1,259 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>YouTube Shorts Feed</title>
-  <style>
-    body { margin: 0; font-family: Arial, sans-serif; background: #000; color: #fff; }
-    #feed { display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 20px; }
-    iframe { width: 360px; height: 640px; border: none; border-radius: 10px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Google Slides</title>
+
+<!-- Favicon -->
+<link rel="icon" href="https://ssl.gstatic.com/docs/presentations/images/favicon.png" type="image/png">
+<style>
+  :root {
+    --bg-light: #f0f0f0;
+    --text-light: #222;
+    --bg-dark: #111;
+    --text-dark: #eee;
+    --primary: #ff5555;
+    --btn-bg: rgba(0,0,0,0.5);
+    --btn-color: #fff;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg-light);
+    color: var(--text-light);
+    font-family: Arial, sans-serif;
+    transition: background 0.3s, color 0.3s;
+  }
+
+  body.dark {
+    background: var(--bg-dark);
+    color: var(--text-dark);
+  }
+
+  .toggle-btn {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 1000;
+    padding: 8px 16px;
+    background: #222;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  #feed, #favorites {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+    height: 100vh;
+    margin-top: 50px;
+  }
+
+  .video-wrapper {
+    width: 100%;
+    max-width: 480px;
+    height: 70vh; /* peek top/bottom */
+    margin: -10vh 0;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 12px;
+    background: #000;
+  }
+
+  .controls {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    display: flex;
+    gap: 8px;
+    z-index: 10;
+  }
+
+  .controls button, .controls input[type="range"] {
+    background: var(--btn-bg);
+    color: var(--btn-color);
+    border: none;
+    border-radius: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  #favorites {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 10px;
+    padding: 10px;
+    height: auto;
+    margin-top: 0;
+  }
+
+  .favorite-video {
+    width: 100%;
+    aspect-ratio: 16/9;
+    overflow: hidden;
+    border-radius: 8px;
+  }
+
+  .favorite-video iframe {
+    width: 100%;
+    height: 100%;
+  }
+</style>
 </head>
 <body>
-  <h1 style="text-align:center;">Weekend YouTube Shorts Feed</h1>
-  <div id="feed"></div>
+<button class="toggle-btn">Toggle Dark/Light</button>
 
-  <script>
-    async function loadFeed() {
-      const res = await fetch('feed.json');
-      const videos = await res.json();
-      const container = document.getElementById('feed');
+<h2 style="text-align:center">YouTube Shorts Feed</h2>
+<div id="feed"></div>
 
-      // Lazy load with IntersectionObserver
-      const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-          if(entry.isIntersecting) {
-            const iframe = entry.target;
-            iframe.src = iframe.dataset.src;
-            observer.unobserve(iframe);
-          }
-        });
-      }, { rootMargin: "200px" });
+<h2 style="text-align:center">Favorites</h2>
+<div id="favorites"></div>
 
-      videos.forEach(id => {
-        const iframe = document.createElement('iframe');
-        iframe.dataset.src = `https://www.youtube.com/embed/${id}?autoplay=0`;
-        container.appendChild(iframe);
-        observer.observe(iframe);
-      });
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+const feedContainer = document.getElementById('feed');
+const favoritesContainer = document.getElementById('favorites');
+const toggleBtn = document.querySelector('.toggle-btn');
+
+let favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+let players = [];
+
+// Dark/light mode
+if(localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
+toggleBtn.addEventListener('click', () => {
+  document.body.classList.toggle('dark');
+  localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+});
+
+// Shuffle helper
+function shuffleArray(array) {
+  return array.sort(() => Math.random() - 0.5);
+}
+
+// Render favorites grid
+function renderFavorites() {
+  favoritesContainer.innerHTML = '';
+  favorites.forEach(id => {
+    const favDiv = document.createElement('div');
+    favDiv.className = 'favorite-video';
+    favDiv.innerHTML = `<iframe src="https://www.youtube.com/embed/${id}?modestbranding=1&rel=0&mute=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+    favoritesContainer.appendChild(favDiv);
+  });
+}
+
+// Called by YouTube API when ready
+function onYouTubeIframeAPIReady() {
+  fetch('feed.json')
+    .then(res => res.json())
+    .then(ids => {
+      const shuffledIds = shuffleArray(ids);
+      shuffledIds.forEach((id, index) => createVideoPlayer(id, index));
+    })
+    .catch(err => console.error('Error loading feed:', err));
+}
+
+// Create each video player with controls
+function createVideoPlayer(id, index) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'video-wrapper';
+
+  const playerDiv = document.createElement('div');
+  playerDiv.id = 'player-' + index;
+  wrapper.appendChild(playerDiv);
+
+  // Controls overlay
+  const controls = document.createElement('div');
+  controls.className = 'controls';
+
+  const playBtn = document.createElement('button');
+  playBtn.textContent = 'Play/Pause';
+  playBtn.addEventListener('click', () => {
+    const player = players[index];
+    const state = player.getPlayerState();
+    if(state === YT.PlayerState.PLAYING) player.pauseVideo();
+    else player.playVideo();
+  });
+  controls.appendChild(playBtn);
+
+  const muteBtn = document.createElement('button');
+  muteBtn.textContent = 'Mute/Unmute';
+  muteBtn.addEventListener('click', () => {
+    const player = players[index];
+    if(player.isMuted()) player.unMute();
+    else player.mute();
+  });
+  controls.appendChild(muteBtn);
+
+  const captionBtn = document.createElement('button');
+  captionBtn.textContent = 'Toggle Captions';
+  captionBtn.addEventListener('click', () => {
+    const player = players[index];
+    // toggle captions
+    player.setOption('captions', 'track', {});
+  });
+  controls.appendChild(captionBtn);
+
+  const volRange = document.createElement('input');
+  volRange.type = 'range';
+  volRange.min = 0;
+  volRange.max = 100;
+  volRange.value = 50;
+  volRange.addEventListener('input', () => {
+    players[index].setVolume(volRange.value);
+  });
+  controls.appendChild(volRange);
+
+  const favBtn = document.createElement('button');
+  favBtn.textContent = favorites.includes(id) ? '♥' : '♡';
+  favBtn.addEventListener('click', () => {
+    if(favorites.includes(id)) {
+      favorites = favorites.filter(f => f !== id);
+      favBtn.textContent = '♡';
+    } else {
+      favorites.push(id);
+      favBtn.textContent = '♥';
     }
+    localStorage.setItem('favorites', JSON.stringify(favorites));
+    renderFavorites();
+  });
+  controls.appendChild(favBtn);
 
-    loadFeed();
-  </script>
+  wrapper.appendChild(controls);
+  feedContainer.appendChild(wrapper);
+
+  const player = new YT.Player(playerDiv.id, {
+    videoId: id,
+    playerVars: { modestbranding: 1, rel: 0, autoplay: 0, mute: 1 },
+    events: {
+      onReady: (event) => event.target.setVolume(50)
+    }
+  });
+
+  players.push(player);
+
+  // Observe for autoplay/pause
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if(entry.isIntersecting) player.playVideo();
+      else player.pauseVideo();
+    });
+  }, { root: feedContainer, threshold: 0.7 });
+
+  observer.observe(wrapper);
+}
+
+// Initial render
+renderFavorites();
+</script>
 </body>
 </html>
