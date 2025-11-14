@@ -12,33 +12,53 @@
 
   html, body { height:100%; margin:0; background:var(--bg); color:var(--text); font-family:Inter,Segoe UI,Roboto,Arial,sans-serif; overflow:hidden; }
   #stack { height:300vh; width:100%; overflow:visible; scroll-behavior:smooth; }
-  .slot { height:100vh; display:flex; align-items:center; justify-content:center; position:relative; }
-  .player-frame { width:360px; height:640px; border-radius:16px; overflow:hidden; background:#000; box-shadow:0 10px 30px rgba(0,0,0,.6); border:1px solid rgba(255,255,255,.03); position:relative; }
+
+  .slot {
+    height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:16px; /* space between video and controls */
+  }
+
+  .player-frame {
+    width:360px;
+    height:640px;
+    border-radius:16px;
+    overflow:hidden;
+    background:#000;
+    box-shadow:0 10px 30px rgba(0,0,0,.6);
+    border:1px solid rgba(255,255,255,.03);
+  }
 
   .player-frame iframe { width:100%; height:100%; border:none; }
 
   #ui {
-    position:absolute; right:-200px; top:50%; transform:translateY(-50%);
-    display:flex; flex-direction:column; gap:10px; align-items:center;
-    background:var(--panel); padding:12px; border-radius:12px; backdrop-filter: blur(6px);
-    transition:right 0.3s ease;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    align-items:center;
+    background:var(--panel);
+    padding:12px;
+    border-radius:12px;
+    backdrop-filter: blur(6px);
+    min-width:120px;
   }
 
-  .slot:hover #ui { right:-16px; } /* slide panel in on hover */
-
-  .btn { background:transparent; color:var(--text); border:1px solid rgba(255,255,255,.06); padding:8px 12px; border-radius:8px; cursor:pointer; min-width:92px; text-align:center; }
+  .btn { background:transparent; color:var(--text); border:1px solid rgba(255,255,255,.06); padding:8px 12px; border-radius:8px; cursor:pointer; text-align:center; }
   .heart { font-size:26px; cursor:pointer; user-select:none; }
   .heart.faved { color:var(--accent); text-shadow:0 2px 8px rgba(0,0,0,.6); }
   #toggleTheme { position:fixed; left:16px; top:16px; padding:8px 10px; border-radius:8px; background:var(--panel); cursor:pointer; }
-
 </style>
 </head>
 <body>
 <button id="toggleTheme" title="Toggle theme">Theme</button>
 
 <div id="stack" tabindex="0" aria-label="Shorts feed">
-  <div class="slot" id="slot-prev"><div class="player-frame"><iframe id="frame-prev" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div>
-    <div id="ui" aria-hidden="false">
+  <!-- Slot template -->
+  <div class="slot" id="slot-prev">
+    <div class="player-frame"><iframe id="frame-prev" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div>
+    <div id="ui">
       <button id="upBtn" class="btn">▲ Up</button>
       <button id="playPause" class="btn">⏸ Pause</button>
       <button id="muteBtn" class="btn">🔊 Unmute</button>
@@ -49,8 +69,9 @@
     </div>
   </div>
 
-  <div class="slot" id="slot-cur"><div class="player-frame"><iframe id="frame-cur" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div>
-    <div id="ui" aria-hidden="false">
+  <div class="slot" id="slot-cur">
+    <div class="player-frame"><iframe id="frame-cur" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div>
+    <div id="ui">
       <button id="upBtn" class="btn">▲ Up</button>
       <button id="playPause" class="btn">⏸ Pause</button>
       <button id="muteBtn" class="btn">🔊 Unmute</button>
@@ -61,12 +82,10 @@
     </div>
   </div>
 
-  <div class="slot" id="slot-next"><div class="player-frame"><iframe id="frame-next" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div>
-    <div id="ui" aria-hidden="false">
+  <div class="slot" id="slot-next">
+    <div class="player-frame"><iframe id="frame-next" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div>
+    <div id="ui">
       <button id="upBtn" class="btn">▲ Up</button>
-      <button id="playPause" class="btn">⏸ Pause</button>
-      <button id="muteBtn" class="btn">🔊 Unmute</button>
-      <button id="ccBtn" class="btn">CC</button>
       <div id="favBtn" class="heart" title="Favorite">♡</div>
       <button id="downBtn" class="btn">▼ Down</button>
       <button id="gotoFav" class="btn">Favorites</button>
@@ -75,7 +94,7 @@
 </div>
 
 <script>
-let feed=[], curIdx=0, unmuted=true, readyToScroll=false, isTransitioning=false, firstUserScroll=true;
+let feed=[], curIdx=0, unmuted=true, readyToScroll=false, isTransitioning=false;
 
 const stack=document.getElementById('stack');
 let framePrev=document.getElementById('frame-prev');
@@ -113,8 +132,8 @@ function setFrame(f,id,opts){
 function replaceFrameReference(oldEl,newEl){if(oldEl.id==='frame-prev') framePrev=newEl;if(oldEl.id==='frame-cur') frameCur=newEl;if(oldEl.id==='frame-next') frameNext=newEl;}
 
 function smoothScrollToMiddle(instant=false){window.scrollTo({top:window.innerHeight,behavior:instant?'auto':'smooth'});}
-function goNext(){if(isTransitioning||curIdx>=feed.length-1) return; isTransitioning=true; curIdx++; rotateForward(); animateScroll();}
-function goPrev(){if(isTransitioning||curIdx<=0) return; isTransitioning=true; curIdx--; rotateBackward(); animateScroll();}
+function goNext(){if(isTransitioning||curIdx>=feed.length-1) return; isTransitioning=true; curIdx++; rotateForward(); }
+function goPrev(){if(isTransitioning||curIdx<=0) return; isTransitioning=true; curIdx--; rotateBackward(); }
 function rotateForward(){framePrev.src='about:blank'; framePrev.src=frameCur.src; framePrev.dataset.video=frameCur.dataset.video; frameCur.src=frameNext.src; frameCur.dataset.video=frameNext.dataset.video; const newNext=feed[curIdx+1]; if(newNext) frameNext.src=buildEmbed(newNext,{autoplay:1,mute:false}); else frameNext.src='about:blank'; updateHeart(); smoothScrollToMiddle(); setTimeout(()=>{isTransitioning=false;readyToScroll=true;},420);}
 function rotateBackward(){frameNext.src='about:blank'; frameNext.src=frameCur.src; frameNext.dataset.video=frameCur.dataset.video; frameCur.src=framePrev.src; frameCur.dataset.video=framePrev.dataset.video; const newPrev=feed[curIdx-1]; if(newPrev) framePrev.src=buildEmbed(newPrev,{autoplay:1,mute:false}); else framePrev.src='about:blank'; updateHeart(); smoothScrollToMiddle(); setTimeout(()=>{isTransitioning=false;readyToScroll=true;},420);}
 
@@ -123,7 +142,7 @@ document.querySelectorAll('.btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
     if(btn.id==='upBtn') goPrev();
     if(btn.id==='downBtn') goNext();
-    if(btn.id==='playPause'){postCommand(frameCur,'getPlayerState'); postCommand(frameCur,'pauseVideo');}
+    if(btn.id==='playPause'){postCommand(frameCur,'pauseVideo');}
     if(btn.id==='muteBtn'){unmuted=!unmuted; const id=frameCur.dataset.video; frameCur.src=buildEmbed(id,{autoplay:1,mute:!unmuted});}
     if(btn.id==='ccBtn'){postCommand(frameCur,'loadModule',['captions']);}
     if(btn.id==='gotoFav'){window.location='favorites.html';}
@@ -143,9 +162,13 @@ window.addEventListener('keydown',e=>{if(e.key==='ArrowDown') goNext(); if(e.key
    Load feed.json
    =========================== */
 async function loadFeed(){
-  try{const r=await fetch('feed.json',{cache:'no-store'}); const data=await r.json(); if(!Array.isArray(data)||data.length===0) return; feed=shuffleArray(data); curIdx=0; prepareFrames(); smoothScrollToMiddle(true);}catch(e){console.error(e);}
+  try{
+    const r=await fetch('feed.json',{cache:'no-store'}); 
+    const data=await r.json(); 
+    if(!Array.isArray(data)||data.length===0) return; 
+    feed=shuffleArray(data); curIdx=0; prepareFrames(); smoothScrollToMiddle(true);
+  }catch(e){console.error(e);}
 }
-
 loadFeed();
 </script>
 </body>
