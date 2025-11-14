@@ -3,78 +3,93 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Favorites</title>
+<title>Google Slides</title>
 <link rel="icon" href="https://gstatic.com/docs/presentations/images/presentations_logo144.png" type="image/png">
 <style>
-  body { margin:0; font-family:Inter,Arial,Helvetica; background:#0b0b0b; color:#fff; padding:18px; }
-  .top { display:flex; gap:12px; align-items:center; margin-bottom:10px; }
-  button { padding:8px 12px; border-radius:8px; cursor:pointer; border:none; background:#111; color:#fff; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px; }
-  .tile { background:#0a0a0a; border-radius:10px; padding:6px; }
-  .tile iframe { width:100%; height:140px; border-radius:8px; border:none; background:#000; }
+  body { margin:0; font-family:Inter,Arial,Helvetica; background:#0b0b0b; color:#fff; padding:18px; }
+  .top { display:flex; gap:12px; align-items:center; margin-bottom:10px; }
+  button { padding:8px 12px; border-radius:8px; cursor:pointer; border:none; background:#111; color:#fff; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px; }
+  .tile { background:#0a0a0a; border-radius:10px; padding:6px; }
+  .tile iframe { width:100%; height:140px; border-radius:8px; border:none; background:#000; }
 </style>
 </head>
 <body>
-  <div class="top">
-    <button onclick="location.href='index.html'">Back</button>
-    <h2 style="margin:0 0 0 10px">Favorites</h2>
-  </div>
+  <div class="top">
+    <!-- Removed inline onclick and added an ID -->
+    <button id="back-btn">Back</button>
+    <h2 style="margin:0 0 0 10px">Favorites</h2>
+  </div>
 
-  <div id="grid" class="grid"></div>
+  <div id="grid" class="grid"></div>
 
 <script>
-function getFavs(){ 
-  try{ 
-    return JSON.parse(localStorage.getItem('favshorts')||'[]'); 
-  }catch(e){ 
-    return []; 
-  } 
+function getFavs(){ 
+  try{ 
+    // Note: This file uses 'favshorts'. The YouTube page uses 'FavShorts'.
+    // Make sure these match if you share favorites between pages.
+    return JSON.parse(localStorage.getItem('FavShorts')||'[]'); 
+  }catch(e){ 
+    return []; 
+  } 
 }
 
 const grid = document.getElementById('grid');
 const favs = getFavs();
 
 if(favs.length===0){
-  grid.innerHTML = '<p>No favorites yet. ❤️</p>';
+  grid.innerHTML = '<p>No favorites yet. ❤️</p>';
 } else {
-  favs.forEach(id => {
-    const tile = document.createElement('div');
-    tile.className = 'tile';
-    tile.innerHTML = `
-      <div class="player-wrapper" style="width:100%; position:relative;">
-        <iframe src="https://www.youtube.com/embed/${id}?rel=0&modestbranding=1&playsinline=1" allow="autoplay; encrypted-media" loading="lazy"></iframe>
-      </div>
-      <div style="display:flex; gap:8px; margin-top:8px;">
-        <button class="playBtn">Play</button>
-        <button class="removeBtn">Remove</button>
-      </div>
-    `;
-    grid.appendChild(tile);
+  favs.forEach(id => {
+    const tile = document.createElement('div');
+    tile.className = 'tile';
+    tile.innerHTML = `
+      <div class="player-wrapper" style="width:100%; position:relative;">
+        <iframe src="https://www.youtube.com/embed/${id}?rel=0&modestbranding=1&playsinline=1" allow="autoplay; encrypted-media" loading="lazy"></iframe>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button class="playBtn">Play</button>
+        <button class="removeBtn">Remove</button>
+      </div>
+    `;
+    grid.appendChild(tile);
 
-    // Play button logic — embed video in tile and autoplay
-    tile.querySelector('.playBtn').addEventListener('click', ()=>{
-      const wrapper = tile.querySelector('.player-wrapper');
-      const iframe = document.createElement('iframe');
-      iframe.src = `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
-      iframe.allow = "autoplay; encrypted-media; fullscreen";
-      iframe.loading = "lazy";
-      iframe.style.width = "100%";
-      iframe.style.height = "200px";
-      iframe.style.border = "none";
-      wrapper.innerHTML = ""; // remove existing iframe
-      wrapper.appendChild(iframe);
-    });
+    // Play button logic — embed video in tile and autoplay
+    tile.querySelector('.playBtn').addEventListener('click', ()=>{
+      const wrapper = tile.querySelector('.player-wrapper');
+      const iframe = document.createElement('iframe');
+      iframe.src = `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
+      iframe.allow = "autoplay; encrypted-media; fullscreen";
+      iframe.loading = "lazy";
+      iframe.style.width = "100%";
+      iframe.style.height = "200px";
+      iframe.style.border = "none";
+      wrapper.innerHTML = ""; // remove existing iframe
+      wrapper.appendChild(iframe);
+    });
 
-    // Remove button logic
-    tile.querySelector('.removeBtn').addEventListener('click', ()=>{
-      let favs = getFavs();
-      favs = favs.filter(x=> x!==id);
-      localStorage.setItem('favshorts', JSON.stringify(favs));
-      tile.remove();
-      if(document.querySelectorAll('.tile').length===0) grid.innerHTML = '<p>No favorites yet. ❤️</p>';
-    });
-  });
+    // Remove button logic
+    tile.querySelector('.removeBtn').addEventListener('click', ()=>{
+      let favs = getFavs();
+      favs = favs.filter(x=> x!==id);
+      localStorage.setItem('FavShorts', JSON.stringify(favs));
+      tile.remove();
+      if(document.querySelectorAll('.tile').length===0) grid.innerHTML = '<p>No favorites yet. ❤️</p>';
+    });
+  });
 }
+
+// Added new logic for the back button
+document.getElementById('back-btn').addEventListener('click', () => {
+  const lastSite = localStorage.getItem('whichsite');
+  
+  if (lastSite === 'shorts') {
+    window.location.href = 'shorts.html';
+  } else {
+    // Default to index.html if it's 'youtube' or not set
+    window.location.href = 'index.html';
+  }
+});
 </script>
 </body>
 </html>
