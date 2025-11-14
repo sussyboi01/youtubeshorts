@@ -23,7 +23,7 @@
   <div id="grid" class="grid"></div>
 
 <script>
-function getFavs(){ try{ return JSON.parse(localStorage.getItem('favorites')||'[]'); }catch(e){ return []; } }
+function getFavs(){ try{ return JSON.parse(localStorage.getItem('favshorts')||'[]'); }catch(e){ return []; } }
 const grid = document.getElementById('grid');
 
 const favs = getFavs();
