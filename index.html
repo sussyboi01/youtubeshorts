@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Slides</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Define dark mode colors using a class */
+        .dark {
+            --bg-color: #1f2937; /* gray-800 */
+            --text-color: #f9fafb; /* gray-50 */
+            --btn-bg-color: #374151; /* gray-700 */
+            --btn-hover-bg-color: #4b5563; /* gray-600 */
+        }
+        
+        /* Define light mode colors (default) */
+        :root {
+            --bg-color: #f9fafb; /* gray-50 */
+            --text-color: #1f2937; /* gray-800 */
+            --btn-bg-color: #e5e7eb; /* gray-200 */
+            --btn-hover-bg-color: #d1d5db; /* gray-300 */
+        }
+
+        /* Apply colors using CSS variables */
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        button {
+            background-color: var(--btn-bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: var(--btn-hover-bg-color);
+        }
+    </style>
+</head>
+<body class="font-sans">
+
+    <!-- Removed flex layout, set to relative for positioning context -->
+    <div class="relative min-h-screen">
+        
+        <!-- Sidebar for buttons -->
+        <!-- 
+          - Changed to fixed position sidebar on the right.
+          - It's 4rem (w-16) wide by default, and expands to 16rem (w-64) on hover.
+          - Added 'overflow-x-hidden' to clip content when collapsed.
+          - Added 'transition-all' for a smooth animation.
+          - Set 'flex-col' to stack buttons vertically.
+        -->
+        <aside class="fixed top-0 right-0 h-screen w-16 bg-[var(--btn-bg-color)] shadow-md z-10
+                      flex flex-col gap-4 p-4 
+                      transition-all duration-300 ease-in-out overflow-x-hidden hover:w-64">
+            
+            <!-- 
+              - Added 'whitespace-nowrap' and 'text-left' to buttons.
+              - This prevents text from wrapping or centering and lets it
+                get clipped until the sidebar expands.
+            -->
+            <button id="theme-btn" class="w-full p-3 rounded-lg font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 whitespace-nowrap text-left">
+                Toggle Theme
+            </button>
+            <button id="fav-btn" class="w-full p-3 rounded-lg font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 whitespace-nowrap text-left">
+                Favorite Video
+            </button>
+            <button id="fav-page-btn" class="w-full p-3 rounded-lg font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 whitespace-nowrap text-left">
+                Favorite Page
+            </button>
+            <button id="shorts-btn" class="w-full p-3 rounded-lg font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 whitespace-nowrap text-left">
+                Shorts Page
+            </button>
+            <!-- Message box for alerts -->
+            <div id="message-box" class="hidden p-3 mt-4 rounded-lg bg-green-500 text-white text-center whitespace-nowrap"></div>
+        </aside>
+
+        <!-- Main content area for video -->
+        <!-- 
+          - Changed to a flex-col layout to fill the screen height.
+          - Changed 'ml-16' to 'mr-16' to make space for the right-hand sidebar.
+        -->
+        <main class="flex flex-col h-screen p-4 md:p-8 mr-16">
+            <div class="w-full h-full flex flex-col">
+                <!-- Header for video link input -->
+                <div class="flex flex-col sm:flex-row gap-2 mb-4">
+                    <input type="text" id="video-link-input" placeholder="Enter YouTube link or Video ID" class="flex-1 p-3 rounded-lg bg-[var(--bg-color)] text-[var(--text-color)] border-2 border-[var(--btn-bg-color)] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <button id="load-video-btn" class="p-3 rounded-lg font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        Load Video
+                    </button>
+                </div>
+                
+                <!-- Video Player container -->
+                <!-- 
+                  - Removed 'aspect-w-16 aspect-h-9' and added 'flex-1'
+                  - This makes the container grow to fill remaining vertical space.
+                -->
+                <div class="flex-1 rounded-lg shadow-xl overflow-hidden">
+                    <!-- 
+                      This embed uses 'dQw4w9WgXcQ' as the video ID.
+                      You can replace this src with any YouTube embed link.
+                    -->
+                    <iframe 
+                        id="video-player"
+                        width="560" 
+                        height="315" 
+                        src="https://www.youtube.com/embed/dQw4w9WgXcQ" 
+                        title="YouTube video player" 
+                        frameborder="0" 
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                        allowfullscreen
+                        class="w-full h-full"
+                    ></iframe>
+                </div>
+            </div>
+        </main>
+
+    </div>
+
+    <script>
+        // Get references to buttons
+        const themeBtn = document.getElementById('theme-btn');
+        const favBtn = document.getElementById('fav-btn');
+        const favPageBtn = document.getElementById('fav-page-btn');
+        const shortsBtn = document.getElementById('shorts-btn');
+        const videoPlayer = document.getElementById('video-player');
+        const messageBox = document.getElementById('message-box');
+        const loadVideoBtn = document.getElementById('load-video-btn');
+        const videoLinkInput = document.getElementById('video-link-input');
+
+        /**
+         * Sets the 'whichsite' item in localStorage.
+         */
+        function setSite() {
+            localStorage.setItem('whichsite', 'youtube');
+        }
+
+        /**
+         * Applies the theme based on localStorage.
+         */
+        function applyTheme() {
+            const theme = localStorage.getItem('theme') || 'light'; // Default to light
+            if (theme === 'dark') {
+                document.body.classList.add('dark');
+            } else {
+                document.body.classList.remove('dark');
+            }
+        }
+
+        /**
+         * Toggles the theme between 'light' and 'dark' in localStorage.
+         */
+        function toggleTheme() {
+            const currentTheme = localStorage.getItem('theme') || 'light';
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            localStorage.setItem('theme', newTheme);
+            applyTheme();
+            showMessage(`Theme set to ${newTheme}`);
+            setSite(); // Set site on user interaction
+        }
+
+        /**
+         * Saves the current video ID to the 'FavShorts' localStorage item.
+         */
+        function favoriteVideo() {
+            setSite(); // Set site on user interaction
+            try {
+                // Extract video ID from the iframe src
+                const videoSrc = videoPlayer.src;
+                const url = new URL(videoSrc);
+                const videoId = url.pathname.split('/').pop(); // Gets the last part, e.g., 'dQw4w9WgXcQ'
+
+                if (!videoId) {
+                    showMessage('Could not find video ID.', 'error');
+                    return;
+                }
+
+                // Get existing favorites or initialize a new array
+                let favs = [];
+                const favsString = localStorage.getItem('FavShorts');
+                if (favsString) {
+                    try {
+                        favs = JSON.parse(favsString);
+                        if (!Array.isArray(favs)) {
+                            favs = [];
+                        }
+                    } catch (e) {
+                        favs = [];
+                    }
+                }
+
+                // Add to favorites if not already present
+                if (!favs.includes(videoId)) {
+                    favs.push(videoId);
+                    localStorage.setItem('FavShorts', JSON.stringify(favs));
+                    showMessage(`Video ID ${videoId} added to favorites!`);
+                } else {
+                    showMessage(`Video ID ${videoId} is already in favorites.`);
+                }
+
+            } catch (error) {
+                console.error('Error favoriting video:', error);
+                showMessage('Error saving favorite.', 'error');
+            }
+        }
+
+        /**
+         * Navigates to the favorites.html page.
+         */
+        function goToFavPage() {
+            setSite(); // Set site on user interaction
+            window.location.href = 'favorites.html';
+        }
+
+        /**
+         * Navigates to the shorts.html page.
+         */
+        function goToShortsPage() {
+            setSite(); // Set site on user interaction
+            window.location.href = 'shorts.html';
+        }
+
+        /**
+         * Loads a new video into the iframe based on user input.
+         */
+        function loadVideo() {
+            setSite(); // Set site on user interaction
+            const videoId = parseYouTubeId(videoLinkInput.value);
+
+            if (videoId) {
+                videoPlayer.src = `https://www.youtube.com/embed/${videoId}`;
+                showMessage(`Loading video: ${videoId}`);
+            } else {
+                showMessage('Invalid YouTube link or ID.', 'error');
+            }
+        }
+
+        /**
+         * Parses a YouTube video ID from various URL formats.
+         * @param {string} url - The YouTube URL or ID.
+         * @returns {string|null} - The extracted video ID or null.
+         */
+        function parseYouTubeId(url) {
+            if (!url) return null;
+            
+            // Regex to find video ID in various formats
+            const regExp = /^(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+            const match = url.match(regExp);
+
+            // Check if it's a plain 11-char ID
+            const plainIdMatch = url.match(/^[a-zA-Z0-9_-]{11}$/);
+
+            if (match && match[1]) {
+                return match[1];
+            } else if (plainIdMatch) {
+                return url;
+            }
+            return null;
+        }
+
+        /**
+ * Displays a custom message to the user.
+ * @param {string} message - The message to display.
+ * @param {string} type - 'success' (default) or 'error'.
+ */
+        function showMessage(message, type = 'success') {
+            messageBox.textContent = message;
+            messageBox.classList.remove('hidden');
+
+            // Set color based on type
+            if (type === 'error') {
+                messageBox.classList.remove('bg-green-500');
+                messageBox.classList.add('bg-red-500');
+            } else {
+                messageBox.classList.remove('bg-red-500');
+                messageBox.classList.add('bg-green-500');
+            }
+
+            // Hide the message after 3 seconds
+            setTimeout(() => {
+                messageBox.classList.add('hidden');
+            }, 3000);
+        }
+
+        // --- Event Listeners ---
+
+        // Apply theme on initial load and set site
+        document.addEventListener('DOMContentLoaded', () => {
+            applyTheme();
+            setSite(); // Set site on initial load
+        });
+
+        // Add click handlers
+        themeBtn.addEventListener('click', toggleTheme);
+        favBtn.addEventListener('click', favoriteVideo);
+        favPageBtn.addEventListener('click', goToFavPage);
+        shortsBtn.addEventListener('click', goToShortsPage);
+        loadVideoBtn.addEventListener('click', loadVideo);
+
+    </script>
+</body>
+</html>
