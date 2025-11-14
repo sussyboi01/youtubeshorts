@@ -28,7 +28,7 @@ function getFavs(){ 
   try{ 
     // Note: This file uses 'favshorts'. The YouTube page uses 'FavShorts'.
     // Make sure these match if you share favorites between pages.
-    return JSON.parse(localStorage.getItem('FavShorts')||'[]'); 
+    return JSON.parse(localStorage.getItem('favshorts')||'[]'); 
   }catch(e){ 
     return []; 
   } 
@@ -72,7 +72,7 @@ if(favs.length===0){
     tile.querySelector('.removeBtn').addEventListener('click', ()=>{
       let favs = getFavs();
       favs = favs.filter(x=> x!==id);
-      localStorage.setItem('FavShorts', JSON.stringify(favs));
+      localStorage.setItem('favshorts', JSON.stringify(favs));
       tile.remove();
       if(document.querySelectorAll('.tile').length===0) grid.innerHTML = '<p>No favorites yet. ❤️</p>';
     });
