@@ -3,137 +3,136 @@
 <head>
 <meta charset="UTF-8">
 <title>Google Slides</title>
-<link rel="icon" href="https://ssl.gstatic.com/docs/presentations/images/favicon.png" type="image/png">
+<link rel="icon" href="https://gstatic.com/docs/presentations/images/favicon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
     body {
-        margin: 0;
         background: #000;
-        color: #fff;
-        font-family: Arial, sans-serif;
-        overflow: hidden;
+        margin: 0;
+        overflow-y: scroll;
+        scroll-behavior: smooth;
     }
 
-    #container {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 360px;
-        height: 640px;
-        overflow: hidden;
-        border-radius: 20px;
-        background: #111;
+    .videoWrapper {
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: relative;
     }
 
     iframe {
-        width: 100%;
-        height: 100%;
+        width: 360px;
+        height: 640px;
+        border-radius: 20px;
         border: none;
+        background: #111;
     }
 
-    #controls {
+    /* Controls */
+    #favBtn {
         position: fixed;
-        right: 20px;
-        top: 50%;
-        transform: translateY(-50%);
-        display: flex;
-        flex-direction: column;
-        gap: 15px;
-    }
-
-    button {
-        background: #222;
-        color: #fff;
-        border: none;
-        padding: 12px;
-        border-radius: 10px;
+        top: 25px;
+        right: 25px;
+        font-size: 38px;
         cursor: pointer;
-        font-size: 16px;
-    }
-
-    #favButton {
-        position: fixed;
-        top: 20px;
-        right: 20px;
+        user-select: none;
     }
 </style>
 </head>
 
 <body>
 
-<button id="favButton" onclick="window.location='favorites.html'">⭐ Favorites</button>
+<div id="favBtn">🤍</div>
 
-<div id="container">
-    <iframe id="player" allow="autoplay; encrypted-media"></iframe>
-</div>
-
-<div id="controls">
-    <button id="playPauseBtn">⏸ Pause</button>
-    <button id="muteBtn">🔇 Mute</button>
-    <button id="ccBtn">CC</button>
-    <button onclick="favoriteCurrent()">⭐ Save</button>
-    <button onclick="nextVideo()">➡️ Next</button>
-</div>
+<div class="videoWrapper"><iframe id="prevVid"></iframe></div>
+<div class="videoWrapper"><iframe id="currentVid"></iframe></div>
+<div class="videoWrapper"><iframe id="nextVid"></iframe></div>
 
 <script>
 let feed = [];
 let index = 0;
-let player;
-let isMuted = true;
-let isPaused = false;
-let captionsEnabled = false;
+let favs = JSON.parse(localStorage.getItem("favorites") || "[]");
+
+const prevFrame = document.getElementById("prevVid");
+const curFrame = document.getElementById("currentVid");
+const nextFrame = document.getElementById("nextVid");
+const favBtn = document.getElementById("favBtn");
+
+function updateHeart() {
+    const id = feed[index];
+    favBtn.textContent = favs.includes(id) ? "❤️" : "🤍";
+}
 
 async function loadFeed() {
     const res = await fetch("feed.json");
     feed = await res.json();
-    loadVideo();
+
+    loadAll();
 }
 
-function loadVideo() {
+function loadAll() {
+    loadFrame(curFrame, feed[index]);
+    loadFrame(nextFrame, feed[index + 1]);
+    updateHeart();
+}
+
+function loadFrame(frame, id) {
+    if (!id) return;
+    frame.src = `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&playsinline=1`;
+}
+
+function onScroll() {
+    const pos = window.scrollY;
+    const height = window.innerHeight;
+
+    if (pos > height * 1.2) {
+        next();
+        window.scrollTo(0, height);
+    } else if (pos < height * 0.8) {
+        previous();
+        window.scrollTo(0, height);
+    }
+}
+
+function next() {
+    index = index + 1;
+    rotateFrames();
+}
+
+function previous() {
+    if (index === 0) return;
+    index = index - 1;
+    rotateFrames();
+}
+
+function rotateFrames() {
+    // Swap iframe elements visually
+    const oldPrev = prevFrame.src;
+    prevFrame.src = curFrame.src;
+    curFrame.src = nextFrame.src;
+
+    // Load new "next" video
+    loadFrame(nextFrame, feed[index + 1]);
+
+    updateHeart();
+}
+
+favBtn.onclick = () => {
     const id = feed[index];
-    const url = `https://www.youtube.com/embed/${id}?autoplay=1&mute=${isMuted ? 1 : 0}&cc_load_policy=${captionsEnabled ? 1 : 0}&playsinline=1`;
 
-    document.getElementById("player").src = url;
-}
+    if (favs.includes(id)) {
+        favs = favs.filter(x => x !== id);
+    } else {
+        favs.push(id);
+    }
 
-function nextVideo() {
-    index = (index + 1) % feed.length;
-    loadVideo();
-}
-
-function favoriteCurrent() {
-    const id = feed[index];
-    let favs = JSON.parse(localStorage.getItem("favorites") || "[]");
-    if (!favs.includes(id)) favs.push(id);
     localStorage.setItem("favorites", JSON.stringify(favs));
-    alert("Saved!");
-}
-
-// Controls
-document.getElementById("muteBtn").onclick = () => {
-    isMuted = !isMuted;
-    loadVideo();
-    document.getElementById("muteBtn").innerText = isMuted ? "🔇 Mute" : "🔊 Unmute";
+    updateHeart();
 };
 
-document.getElementById("playPauseBtn").onclick = () => {
-    isPaused = !isPaused;
-    player = document.getElementById("player").contentWindow;
-    player.postMessage(JSON.stringify({
-        event: "command",
-        func: isPaused ? "pauseVideo" : "playVideo"
-    }), "*");
-
-    document.getElementById("playPauseBtn").innerText = isPaused ? "▶️ Play" : "⏸ Pause";
-};
-
-document.getElementById("ccBtn").onclick = () => {
-    captionsEnabled = !captionsEnabled;
-    loadVideo();
-};
-
+window.addEventListener("scroll", onScroll);
 loadFeed();
 </script>
 
