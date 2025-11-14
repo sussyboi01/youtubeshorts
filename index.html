@@ -10,16 +10,22 @@
   :root { --bg:#0b0b0b; --panel:rgba(0,0,0,0.45); --text:#fff; --accent:#ff3b30; }
   :root.light { --bg:#f6f7fb; --panel:rgba(255,255,255,0.75); --text:#111; --accent:#e64b3b; }
 
-  html,body { height:100%; margin:0; background:var(--bg); color:var(--text); font-family:Inter,Segoe UI,Roboto,Arial,sans-serif; overflow:hidden; }
+  html, body { height:100%; margin:0; background:var(--bg); color:var(--text); font-family:Inter,Segoe UI,Roboto,Arial,sans-serif; overflow:hidden; }
   #stack { height:300vh; width:100%; overflow:visible; scroll-behavior:smooth; }
-  .slot { height:100vh; display:flex; align-items:center; justify-content:center; }
-  .player-frame { width:360px; height:640px; border-radius:16px; overflow:hidden; background:#000; box-shadow:0 10px 30px rgba(0,0,0,.6); border:1px solid rgba(255,255,255,.03); }
+  .slot { height:100vh; display:flex; align-items:center; justify-content:center; position:relative; }
+  .player-frame { width:360px; height:640px; border-radius:16px; overflow:hidden; background:#000; box-shadow:0 10px 30px rgba(0,0,0,.6); border:1px solid rgba(255,255,255,.03); position:relative; }
+
+  .player-frame iframe { width:100%; height:100%; border:none; }
 
   #ui {
-    position:fixed; right:16px; top:50%; transform:translateY(-50%);
+    position:absolute; right:-200px; top:50%; transform:translateY(-50%);
     display:flex; flex-direction:column; gap:10px; align-items:center;
     background:var(--panel); padding:12px; border-radius:12px; backdrop-filter: blur(6px);
+    transition:right 0.3s ease;
   }
+
+  .slot:hover #ui { right:-16px; } /* slide panel in on hover */
+
   .btn { background:transparent; color:var(--text); border:1px solid rgba(255,255,255,.06); padding:8px 12px; border-radius:8px; cursor:pointer; min-width:92px; text-align:center; }
   .heart { font-size:26px; cursor:pointer; user-select:none; }
   .heart.faved { color:var(--accent); text-shadow:0 2px 8px rgba(0,0,0,.6); }
@@ -28,214 +34,119 @@
 </style>
 </head>
 <body>
-  <button id="toggleTheme" title="Toggle theme">Theme</button>
+<button id="toggleTheme" title="Toggle theme">Theme</button>
 
-  <div id="ui" aria-hidden="false">
-    <button id="upBtn" class="btn">▲ Up</button>
-    <button id="playPause" class="btn">⏸ Pause</button>
-    <button id="muteBtn" class="btn">🔇 Mute</button>
-    <button id="ccBtn" class="btn">CC</button>
-    <div id="favBtn" class="heart" title="Favorite">♡</div>
-    <button id="downBtn" class="btn">▼ Down</button>
-    <button id="gotoFav" class="btn">Favorites</button>
+<div id="stack" tabindex="0" aria-label="Shorts feed">
+  <div class="slot" id="slot-prev"><div class="player-frame"><iframe id="frame-prev" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div>
+    <div id="ui" aria-hidden="false">
+      <button id="upBtn" class="btn">▲ Up</button>
+      <button id="playPause" class="btn">⏸ Pause</button>
+      <button id="muteBtn" class="btn">🔊 Unmute</button>
+      <button id="ccBtn" class="btn">CC</button>
+      <div id="favBtn" class="heart" title="Favorite">♡</div>
+      <button id="downBtn" class="btn">▼ Down</button>
+      <button id="gotoFav" class="btn">Favorites</button>
+    </div>
   </div>
 
-  <div id="stack" tabindex="0" aria-label="Shorts feed">
-    <div class="slot" id="slot-prev"><div class="player-frame"><iframe id="frame-prev" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div></div>
-    <div class="slot" id="slot-cur"><div class="player-frame"><iframe id="frame-cur" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div></div>
-    <div class="slot" id="slot-next"><div class="player-frame"><iframe id="frame-next" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div></div>
+  <div class="slot" id="slot-cur"><div class="player-frame"><iframe id="frame-cur" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div>
+    <div id="ui" aria-hidden="false">
+      <button id="upBtn" class="btn">▲ Up</button>
+      <button id="playPause" class="btn">⏸ Pause</button>
+      <button id="muteBtn" class="btn">🔊 Unmute</button>
+      <button id="ccBtn" class="btn">CC</button>
+      <div id="favBtn" class="heart" title="Favorite">♡</div>
+      <button id="downBtn" class="btn">▼ Down</button>
+      <button id="gotoFav" class="btn">Favorites</button>
+    </div>
   </div>
+
+  <div class="slot" id="slot-next"><div class="player-frame"><iframe id="frame-next" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div>
+    <div id="ui" aria-hidden="false">
+      <button id="upBtn" class="btn">▲ Up</button>
+      <button id="playPause" class="btn">⏸ Pause</button>
+      <button id="muteBtn" class="btn">🔊 Unmute</button>
+      <button id="ccBtn" class="btn">CC</button>
+      <div id="favBtn" class="heart" title="Favorite">♡</div>
+      <button id="downBtn" class="btn">▼ Down</button>
+      <button id="gotoFav" class="btn">Favorites</button>
+    </div>
+  </div>
+</div>
 
 <script>
-/* ===========================
-   Config & state
-   =========================== */
-let feed = []; // will be loaded from feed.json
+let feed=[], curIdx=0, unmuted=true, readyToScroll=false, isTransitioning=false, firstUserScroll=true;
 
-async function loadFeed() {
-  try {
-    const res = await fetch('feed.json', { cache: 'no-store' });
-    const data = await res.json();
-    if (!Array.isArray(data) || data.length === 0) {
-      console.error('feed.json empty');
-      return;
-    }
-    feed = shuffleArray(data); // randomize on each load
-    curIdx = 0;
-    prepareFrames();
-    smoothScrollToMiddle(true);
-  } catch (e) {
-    console.error('Error loading feed.json', e);
-  }
-}
+const stack=document.getElementById('stack');
+let framePrev=document.getElementById('frame-prev');
+let frameCur=document.getElementById('frame-cur');
+let frameNext=document.getElementById('frame-next');
 
-let curIdx = 0;
-let unmuted = false;
-let readyToScroll = false;
-let isTransitioning = false;
-let firstUserScroll = true;
+const toggleTheme=document.getElementById('toggleTheme');
 
-const stack = document.getElementById('stack');
-let framePrev = document.getElementById('frame-prev');
-let frameCur  = document.getElementById('frame-cur');
-let frameNext = document.getElementById('frame-next');
+function shuffleArray(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function getFavs(){try{return JSON.parse(localStorage.getItem('FavShorts')||'[]');}catch(e){return[];}}
+function setFavs(a){localStorage.setItem('FavShorts',JSON.stringify(a));}
+function updateHeart(){const f=getFavs();const id=feed[curIdx];if(!id){document.querySelectorAll('.heart').forEach(h=>{h.textContent='♡';h.classList.remove('faved');}); return;} const hearts=document.querySelectorAll('.heart'); hearts.forEach(h=>{if(f.includes(id)){h.textContent='❤';h.classList.add('faved');} else {h.textContent='♡';h.classList.remove('faved');}});}
 
-const upBtn = document.getElementById('upBtn');
-const downBtn = document.getElementById('downBtn');
-const playPauseBtn = document.getElementById('playPause');
-const muteBtn = document.getElementById('muteBtn');
-const ccBtn = document.getElementById('ccBtn');
-const favBtn = document.getElementById('favBtn');
-const gotoFav = document.getElementById('gotoFav');
-const toggleTheme = document.getElementById('toggleTheme');
-
-/* ===========================
-   Helpers
-   =========================== */
-function shuffleArray(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
-feed = shuffleArray(feed);
-
-function getFavs(){ try{ return JSON.parse(localStorage.getItem('favshorts')||'[]'); }catch(e){ return []; } }
-function setFavs(a){ localStorage.setItem('FavShorts', JSON.stringify(a)); }
-function updateHeart(){ const f=getFavs(); const id = feed[curIdx]; if(!id){ favBtn.textContent='♡'; favBtn.classList.remove('faved'); return;} if(f.includes(id)){ favBtn.textContent='❤'; favBtn.classList.add('faved'); } else { favBtn.textContent='♡'; favBtn.classList.remove('faved'); } }
-
-function getTheme(){ return localStorage.getItem('theme')||'dark'; }
-function applyTheme(t){ document.documentElement.classList.toggle('light', t==='light'); localStorage.setItem('theme', t); toggleTheme.style.color = t==='light'?'black':'white'; }
+function getTheme(){return localStorage.getItem('theme')||'dark';}
+function applyTheme(t){document.documentElement.classList.toggle('light',t==='light');localStorage.setItem('theme',t);toggleTheme.style.color=t==='light'?'black':'white';}
 applyTheme(getTheme());
-toggleTheme.addEventListener('click',()=>{ applyTheme(getTheme()==='light'?'dark':'light'); });
+toggleTheme.addEventListener('click',()=>{applyTheme(getTheme()==='light'?'dark':'light');});
 
-/* ===========================
-   Iframe utilities
-   =========================== */
-function buildEmbed(id,opts={}) {
-  const params = new URLSearchParams();
-  params.set('rel','0');
-  if(opts.modestbranding) params.set('modestbranding','1');
-  if(opts.playsinline) params.set('playsinline','1');
-  if(opts.enablejsapi) params.set('enablejsapi','1');
-  params.set('autoplay', opts.autoplay? '1':'0');
-  params.set('mute', opts.mute? '1':'0');
-  params.set('origin', location.origin);
-  return `https://www.youtube.com/embed/${id}?${params.toString()}`;
-}
+function buildEmbed(id,opts={}){const p=new URLSearchParams();p.set('rel','0');if(opts.modestbranding)p.set('modestbranding','1');if(opts.playsinline)p.set('playsinline','1');if(opts.enablejsapi)p.set('enablejsapi','1');p.set('autoplay',opts.autoplay?'1':'1');p.set('mute',opts.mute?'1':'0');p.set('origin',location.origin);return `https://www.youtube.com/embed/${id}?${p.toString()}`;}
 
-/* ===========================
-   Frame rotation
-   =========================== */
 function prepareFrames(){
   readyToScroll=false;
-  setFrame(framePrev, feed[curIdx-1], {autoplay:0, mute:true});
-  setFrame(frameCur, feed[curIdx], {autoplay:1, mute:true});
-  setFrame(frameNext, feed[curIdx+1], {autoplay:0, mute:true});
+  setFrame(framePrev,feed[curIdx-1],{autoplay:1,mute:false});
+  setFrame(frameCur,feed[curIdx],{autoplay:1,mute:false});
+  setFrame(frameNext,feed[curIdx+1],{autoplay:1,mute:false});
   updateHeart();
 }
 
-function setFrame(frame,id,opts){
-  if(!id){ frame.src='about:blank'; return; }
-  frame.dataset.video=id;
-  frame.src=buildEmbed(id,opts);
-  if(frame===frameCur){
-    const newFrame=frame.cloneNode(true);
-    frame.parentNode.replaceChild(newFrame,frame);
-    replaceFrameReference(frame,newFrame);
-    newFrame.addEventListener('load',()=>{ setTimeout(()=>{ readyToScroll=true; smoothScrollToMiddle(true); },150); }, {once:true});
-  }
+function setFrame(f,id,opts){
+  if(!id){ f.src='about:blank'; return; }
+  f.dataset.video=id; f.src=buildEmbed(id,opts);
+  if(f===frameCur){const newF=f.cloneNode(true); f.parentNode.replaceChild(newF,f); replaceFrameReference(f,newF); newF.addEventListener('load',()=>{setTimeout(()=>{readyToScroll=true;smoothScrollToMiddle(true);},150);},{once:true});}
 }
 
-function replaceFrameReference(oldEl,newEl){
-  if(oldEl.id==='frame-prev') framePrev=newEl;
-  if(oldEl.id==='frame-cur') frameCur=newEl;
-  if(oldEl.id==='frame-next') frameNext=newEl;
-}
+function replaceFrameReference(oldEl,newEl){if(oldEl.id==='frame-prev') framePrev=newEl;if(oldEl.id==='frame-cur') frameCur=newEl;if(oldEl.id==='frame-next') frameNext=newEl;}
 
-/* ===========================
-   Scrolling
-   =========================== */
-function smoothScrollToMiddle(instant=false){
-  const top=window.innerHeight;
-  window.scrollTo({top,behavior:instant?'auto':'smooth'});
-}
+function smoothScrollToMiddle(instant=false){window.scrollTo({top:window.innerHeight,behavior:instant?'auto':'smooth'});}
+function goNext(){if(isTransitioning||curIdx>=feed.length-1) return; isTransitioning=true; curIdx++; rotateForward(); animateScroll();}
+function goPrev(){if(isTransitioning||curIdx<=0) return; isTransitioning=true; curIdx--; rotateBackward(); animateScroll();}
+function rotateForward(){framePrev.src='about:blank'; framePrev.src=frameCur.src; framePrev.dataset.video=frameCur.dataset.video; frameCur.src=frameNext.src; frameCur.dataset.video=frameNext.dataset.video; const newNext=feed[curIdx+1]; if(newNext) frameNext.src=buildEmbed(newNext,{autoplay:1,mute:false}); else frameNext.src='about:blank'; updateHeart(); smoothScrollToMiddle(); setTimeout(()=>{isTransitioning=false;readyToScroll=true;},420);}
+function rotateBackward(){frameNext.src='about:blank'; frameNext.src=frameCur.src; frameNext.dataset.video=frameCur.dataset.video; frameCur.src=framePrev.src; frameCur.dataset.video=framePrev.dataset.video; const newPrev=feed[curIdx-1]; if(newPrev) framePrev.src=buildEmbed(newPrev,{autoplay:1,mute:false}); else framePrev.src='about:blank'; updateHeart(); smoothScrollToMiddle(); setTimeout(()=>{isTransitioning=false;readyToScroll=true;},420);}
 
-function goNext(){ if(isTransitioning||curIdx>=feed.length-1) return; isTransitioning=true; curIdx++; rotateForward(); animateScroll();}
-function goPrev(){ if(isTransitioning||curIdx<=0) return; isTransitioning=true; curIdx--; rotateBackward(); animateScroll(); }
-
-function rotateForward(){
-  framePrev.src='about:blank';
-  const oldPrev=framePrev, oldCur=frameCur, oldNext=frameNext;
-  framePrev.src=oldCur.src; framePrev.dataset.video=oldCur.dataset.video;
-  frameCur.src=oldNext.src; frameCur.dataset.video=oldNext.dataset.video;
-  const newNext=feed[curIdx+1]; if(newNext) frameNext.src=buildEmbed(newNext,{autoplay:0,mute:!unmuted}); else frameNext.src='about:blank';
-  updateHeart();
-  smoothScrollToMiddle();
-  setTimeout(()=>{ isTransitioning=false; readyToScroll=true; },420);
-}
-
-function rotateBackward(){
-  frameNext.src='about:blank';
-  frameNext.src=frameCur.src; frameNext.dataset.video=frameCur.dataset.video;
-  frameCur.src=framePrev.src; frameCur.dataset.video=framePrev.dataset.video;
-  const newPrev=feed[curIdx-1]; if(newPrev) framePrev.src=buildEmbed(newPrev,{autoplay:0,mute:!unmuted}); else framePrev.src='about:blank';
-  updateHeart();
-  smoothScrollToMiddle();
-  setTimeout(()=>{ isTransitioning=false; readyToScroll=true; },420);
-}
-
-/* ===========================
-   First scroll unmute
-   =========================== */
-function unmuteAllFuture(){
-  unmuted=true;
-  const curId=frameCur.dataset.video;
-  const nextId=frameNext.dataset.video;
-  if(curId) frameCur.src=buildEmbed(curId,{autoplay:1,mute:false,enablejsapi:1,modestbranding:1,playsinline:1});
-  if(nextId) frameNext.src=buildEmbed(nextId,{autoplay:0,mute:false,enablejsapi:1,modestbranding:1,playsinline:1});
-  muteBtn.textContent='🔊 Unmute';
-}
-
-/* ===========================
-   Buttons
-   =========================== */
-playPauseBtn.addEventListener('click', ()=>{
-  const f=playPauseBtn.textContent.includes('Pause');
-  postCommand(frameCur,f?'pauseVideo':'playVideo');
-  playPauseBtn.textContent=f?'▶ Play':'⏸ Pause';
+/* buttons */
+document.querySelectorAll('.btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    if(btn.id==='upBtn') goPrev();
+    if(btn.id==='downBtn') goNext();
+    if(btn.id==='playPause'){postCommand(frameCur,'getPlayerState'); postCommand(frameCur,'pauseVideo');}
+    if(btn.id==='muteBtn'){unmuted=!unmuted; const id=frameCur.dataset.video; frameCur.src=buildEmbed(id,{autoplay:1,mute:!unmuted});}
+    if(btn.id==='ccBtn'){postCommand(frameCur,'loadModule',['captions']);}
+    if(btn.id==='gotoFav'){window.location='favorites.html';}
+  });
 });
+document.querySelectorAll('.heart').forEach(h=>h.addEventListener('click',()=>{
+  const id=feed[curIdx]; if(!id) return; let f=getFavs(); if(f.includes(id)) f=f.filter(x=>x!==id); else f.push(id); setFavs(f); updateHeart();
+}));
 
-muteBtn.addEventListener('click', ()=>{
-  const id=frameCur.dataset.video;
-  if(!id) return;
-  if(unmuted){ unmuted=false; frameCur.src=buildEmbed(id,{autoplay:1,mute:true,enablejsapi:1,modestbranding:1,playsinline:1}); muteBtn.textContent='🔇 Mute';}
-  else { unmuted=true; frameCur.src=buildEmbed(id,{autoplay:1,mute:false,enablejsapi:1,modestbranding:1,playsinline:1}); muteBtn.textContent='🔊 Unmute'; }
-  const nextId=frameNext.dataset.video; if(nextId) frameNext.src=buildEmbed(nextId,{autoplay:0,mute:!unmuted,enablejsapi:1,modestbranding:1,playsinline:1});
-});
+function postCommand(frame,command,args=[]){if(!frame||!frame.contentWindow) return; try{frame.contentWindow.postMessage(JSON.stringify({event:'command',func:command,args}),'*');}catch(e){}}
 
-ccBtn.addEventListener('click',()=>{ postCommand(frameCur,'loadModule',['captions']); });
-
-favBtn.addEventListener('click',()=>{
-  const id=feed[curIdx]; if(!id) return;
-  let f=getFavs();
-  if(f.includes(id)) f=f.filter(x=>x!==id); else f.push(id);
-  setFavs(f); updateHeart();
-});
-
-gotoFav.addEventListener('click',()=> location.href='favorites.html');
-upBtn.addEventListener('click',()=>{ if(firstUserScroll){ unmuteAllFuture(); firstUserScroll=false; } goPrev(); });
-downBtn.addEventListener('click',()=>{ if(firstUserScroll){ unmuteAllFuture(); firstUserScroll=false; } goNext(); });
-
-window.addEventListener('wheel', (e)=> { if(!readyToScroll||isTransitioning){ e.preventDefault(); return;} if(firstUserScroll){ unmuteAllFuture(); firstUserScroll=false;} if(e.deltaY>40) goNext(); else if(e.deltaY<-40) goPrev(); }, {passive:false});
-window.addEventListener('keydown',(e)=>{ if(e.key==='ArrowDown'){ if(firstUserScroll){ unmuteAllFuture(); firstUserScroll=false;} goNext(); } if(e.key==='ArrowUp'){ if(firstUserScroll){ unmuteAllFuture(); firstUserScroll=false;} goPrev(); } });
+/* keyboard/wheel navigation */
+window.addEventListener('wheel',e=>{if(!readyToScroll||isTransitioning){e.preventDefault();return;} if(e.deltaY>40) goNext(); else if(e.deltaY<-40) goPrev();},{passive:false});
+window.addEventListener('keydown',e=>{if(e.key==='ArrowDown') goNext(); if(e.key==='ArrowUp') goPrev();});
 
 /* ===========================
-   YouTube API postMessage
+   Load feed.json
    =========================== */
-function postCommand(frame,command,args=[]){ if(!frame||!frame.contentWindow) return; try{ frame.contentWindow.postMessage(JSON.stringify({event:'command',func:command,args}),'*');}catch(e){} }
+async function loadFeed(){
+  try{const r=await fetch('feed.json',{cache:'no-store'}); const data=await r.json(); if(!Array.isArray(data)||data.length===0) return; feed=shuffleArray(data); curIdx=0; prepareFrames(); smoothScrollToMiddle(true);}catch(e){console.error(e);}
+}
 
-/* ===========================
-   Startup
-   =========================== */
-prepareFrames();
 loadFeed();
-smoothScrollToMiddle(true);
 </script>
 </body>
 </html>
