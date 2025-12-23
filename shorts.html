@@ -8,10 +8,9 @@
 
 <style>
   :root { --bg:#0b0b0b; --panel:rgba(0,0,0,0.45); --text:#fff; --accent:#ff3b30; }
-  :root.light { --bg:#f6f7fb; --panel:rgba(255,255,255,0.75); --text:#111; --accent:#e64b3b; }
-
+  
   html, body { height:100%; margin:0; background:var(--bg); color:var(--text); font-family:Inter,Segoe UI,Roboto,Arial,sans-serif; overflow:hidden; }
-  #stack { height:300vh; width:100%; overflow:visible; scroll-behavior:smooth; }
+  #stack { height:100vh; width:100%; overflow:hidden; }
 
   .slot {
     height: 100vh;
@@ -19,7 +18,6 @@
     align-items: center;
     justify-content: center;
     gap: 16px;
-    flex-direction: row;
   }
    
   .player-frame {
@@ -30,7 +28,6 @@
     background: #000;
     box-shadow: 0 10px 30px rgba(0,0,0,.6);
     border: 1px solid rgba(255,255,255,.03);
-    flex-shrink: 0;
   }
   .player-frame iframe { width:100%; height:100%; border:none; }
 
@@ -44,145 +41,126 @@
     border-radius: 12px;
     backdrop-filter: blur(6px);
     min-width: 120px;
-    flex-shrink: 0;
   }
 
-  .btn { background:transparent; color:var(--text); border:1px solid rgba(255,255,255,.06); padding:8px 12px; border-radius:8px; cursor:pointer; text-align:center; }
+  .btn { background:transparent; color:var(--text); border:1px solid rgba(255,255,255,.06); padding:8px 12px; border-radius:8px; cursor:pointer; }
   .heart { font-size:26px; cursor:pointer; user-select:none; }
-  .heart.faved { color:var(--accent); text-shadow:0 2px 8px rgba(0,0,0,.6); }
+  .heart.faved { color:var(--accent); }
+
+  /* Overlay Styles */
+  #overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    transition: opacity 0.5s ease;
+  }
+  .overlay-content { text-align: center; color: white; }
+  .start-btn {
+    margin-top: 20px;
+    padding: 15px 30px;
+    font-size: 18px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 30px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  #overlay.hidden { opacity: 0; pointer-events: none; }
 </style>
 </head>
 <body>
 
-<div id="stack" tabindex="0" aria-label="Shorts feed">
-  <!-- Slot template -->
-  <div class="slot" id="slot-prev">
-    <div class="player-frame"><iframe id="frame-prev" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div>
-    <div id="ui">
-      <button id="upBtn" class="btn">▲ Up</button>
-      <div id="favBtn" class="heart" title="Favorite">♡</div>
-      <button id="downBtn" class="btn">▼ Down</button>
-      <button id="gotoFav" class="btn">Favorites</button>
-      <button id="gotoYT" class="btn">Youtube</button>
-    </div>
-  </div>
-
-  <div class="slot" id="slot-cur">
-    <div class="player-frame"><iframe id="frame-cur" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div>
-    <div id="ui">
-      <button id="upBtn" class="btn">▲ Up</button>
-      <div id="favBtn" class="heart" title="Favorite">♡</div>
-      <button id="downBtn" class="btn">▼ Down</button>
-      <button id="gotoFav" class="btn">Favorites</button>
-      <button id="gotoYT" class="btn">Youtube</button>
-    </div>
-  </div>
-
-  <div class="slot" id="slot-next">
-    <div class="player-frame"><iframe id="frame-next" allow="autoplay; encrypted-media; fullscreen" loading="lazy"></iframe></div>
-    <div id="ui">
-      <button id="upBtn" class="btn">▲ Up</button>
-      <div id="favBtn" class="heart" title="Favorite">♡</div>
-      <button id="downBtn" class="btn">▼ Down</button>
-      <button id="gotoFav" class="btn">Favorites</button>
-      <button id="gotoYT" class="btn">Youtube</button>
-    </div>
+<div id="overlay">
+  <div class="overlay-content">
+    <h1>YouTube Shorts Feed</h1>
+    <p>Press any key or click to start with sound</p>
+    <button class="start-btn">Start Watching</button>
   </div>
 </div>
 
-<script>
-let feed=[], curIdx=0;
+<div id="stack">
+  <div class="slot" id="slot-cur">
+    <div class="player-frame"><iframe id="frame-cur" allow="autoplay; encrypted-media; fullscreen"></iframe></div>
+    <div id="ui">
+      <button id="upBtn" class="btn">▲ Up</button>
+      <div id="favBtn" class="heart">♡</div>
+      <button id="downBtn" class="btn">▼ Down</button>
+      <button id="gotoFav" class="btn">Favorites</button>
+      <button id="gotoYT" class="btn">Youtube</button>
+    </div>
+  </div>
+  <iframe id="frame-prev" style="display:none"></iframe>
+  <iframe id="frame-next" style="display:none"></iframe>
+</div>
 
-const framePrev=document.getElementById('frame-prev');
-const frameCur=document.getElementById('frame-cur');
-const frameNext=document.getElementById('frame-next');
+<script>
+let feed = [], curIdx = 0, activated = false;
+
+const framePrev = document.getElementById('frame-prev');
+const frameCur = document.getElementById('frame-cur');
+const frameNext = document.getElementById('frame-next');
+const overlay = document.getElementById('overlay');
+
+function activateApp() {
+  if (activated) return;
+  activated = true;
+  overlay.classList.add('hidden');
+  postCommand(frameCur, 'playVideo');
+}
+
+window.addEventListener('click', activateApp);
+window.addEventListener('keydown', activateApp);
 
 function shuffleArray(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 
-function buildEmbed(id){
-  const p = new URLSearchParams();
-  p.set('rel','0');
-  p.set('autoplay','1');
-  p.set('mute','0');
-  p.set('enablejsapi','1');
-  p.set('playsinline','1');
-  return `https://www.youtube.com/embed/${id}?${p.toString()}`;
+function buildEmbed(id) {
+  return `https://www.youtube.com/embed/${id}?rel=0&autoplay=1&mute=0&enablejsapi=1&playsinline=1`;
 }
 
-// Preload frames
-function setFrame(f,id,isCurrent=false){
-  if(!id){ f.src='about:blank'; return; }
-  f.dataset.video=id;
-  f.src=buildEmbed(id);
-  f.onload = ()=>{
-    if(isCurrent) postCommand(f,'playVideo'); 
-    else postCommand(f,'pauseVideo');
+function setFrame(f, id, isCurrent = false) {
+  if (!id) { f.src = 'about:blank'; return; }
+  f.src = buildEmbed(id);
+  f.onload = () => {
+    if (isCurrent && activated) postCommand(f, 'playVideo');
+    else postCommand(f, 'pauseVideo');
   };
 }
 
-function rotateForward(){
-  if(curIdx>=feed.length-1) return;
-  curIdx++;
-  setFrame(framePrev, feed[curIdx-1], false);
+function updateFrames() {
+  setFrame(framePrev, feed[curIdx - 1], false);
   setFrame(frameCur, feed[curIdx], true);
-  setFrame(frameNext, feed[curIdx+1], false);
+  setFrame(frameNext, feed[curIdx + 1], false);
 }
 
-function rotateBackward(){
-  if(curIdx<=0) return;
-  curIdx--;
-  setFrame(framePrev, feed[curIdx-1], false);
-  setFrame(frameCur, feed[curIdx], true);
-  setFrame(frameNext, feed[curIdx+1], false);
+function rotateForward() { if(curIdx < feed.length - 1) { curIdx++; updateFrames(); } }
+function rotateBackward() { if(curIdx > 0) { curIdx--; updateFrames(); } }
+
+function postCommand(frame, command) {
+  if (!frame || !frame.contentWindow) return;
+  frame.contentWindow.postMessage(JSON.stringify({event:'command', func:command, args:[]}), '*');
 }
 
-function postCommand(frame,command){
-  if(!frame||!frame.contentWindow) return;
-  frame.contentWindow.postMessage(JSON.stringify({event:'command',func:command,args:[]}),'*');
+/* Event Listeners */
+document.getElementById('upBtn').onclick = rotateBackward;
+document.getElementById('downBtn').onclick = rotateForward;
+window.addEventListener('wheel', e => { if(e.deltaY > 40) rotateForward(); else if(e.deltaY < -40) rotateBackward(); });
+window.addEventListener('keydown', e => { if(e.key === 'ArrowDown') rotateForward(); if(e.key === 'ArrowUp') rotateBackward(); });
+
+/* Load Data */
+async function loadFeed() {
+  try {
+    const r = await fetch('feed.json', {cache: 'no-store'});
+    feed = shuffleArray(await r.json());
+    updateFrames();
+  } catch (e) { console.error("Could not load feed.json", e); }
 }
 
-/* Buttons */
-document.querySelectorAll('.btn').forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    if(btn.id==='upBtn') rotateBackward();
-    if(btn.id==='downBtn') rotateForward();
-    if(btn.id==='gotoFav') window.location='favorites.html';
-    if(btn.id==='gotoYT') window.location='index.html';
-  });
-});
-
-document.querySelectorAll('.heart').forEach(h=>{
-  h.addEventListener('click',()=>{
-    const id = feed[curIdx];
-    if(!id) return;
-    let f = JSON.parse(localStorage.getItem('favshorts')||'[]');
-    if(f.includes(id)) f=f.filter(x=>x!==id); else f.push(id);
-    localStorage.setItem('favshorts', JSON.stringify(f));
-  });
-});
-
-/* Keyboard/Wheel navigation */
-window.addEventListener('wheel', e=>{ if(e.deltaY>40) rotateForward(); else if(e.deltaY<-40) rotateBackward(); },{passive:false});
-window.addEventListener('keydown', e=>{ if(e.key==='ArrowDown') rotateForward(); if(e.key==='ArrowUp') rotateBackward(); });
-
-/* Load feed.json */
-async function loadFeed(){
-  try{
-    const r = await fetch('feed.json',{cache:'no-store'});
-    const data = await r.json();
-    if(!Array.isArray(data)||data.length===0) return;
-    feed = shuffleArray(data); 
-    curIdx = 0;
-    setFrame(framePrev, feed[curIdx-1], false);
-    setFrame(frameCur, feed[curIdx], true);
-    setFrame(frameNext, feed[curIdx+1], false);
-  }catch(e){console.error(e);}
-}
 loadFeed();
 </script>
-
-<!-- YouTube IFrame API -->
-<script src="https://www.youtube.com/iframe_api"></script>
-
 </body>
 </html>
